@@ -1,5 +1,5 @@
 # 1. Start with the official Python image (slim = smaller size)
-FROM python:3.11-slim
+FROM python:3.11-bullseye
 
 # 2. Install build tools and psycopg2 dependencies
 RUN apt-get update && apt-get install -y \
@@ -19,10 +19,13 @@ COPY requirements.txt /app/
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# 6. Copy the rest of the Django project code into the container
+# 6. Install Playwright browsers
+RUN playwright install --with-deps
+
+# 7. Copy the rest of the Django project code into the container
 COPY . /app/
 
-# 7. Create log directory for gunicorn and celery
+# 8. Create log directory for gunicorn and celery
 RUN mkdir -p \
     /var/log/app/django_server/django \
     /var/log/app/django_server/gunicorn \

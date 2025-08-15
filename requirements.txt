@@ -7,6 +7,7 @@ click-didyoumean==0.3.1
 click-plugins==1.1.1.2
 click-repl==0.3.0
 Django==5.2.4
+playwright
 psycopg2-binary
 djangorestframework==3.16.0
 gunicorn==23.0.0
