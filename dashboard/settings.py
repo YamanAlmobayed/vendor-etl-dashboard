@@ -43,8 +43,10 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # settings.py
 
-CELERY_BROKER_URL = 'redis://redis:6379/0'           
-CELERY_RESULT_BACKEND = 'redis://redis:6379/0'      
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+CELERY_BROKER_URL = REDIS_URL           
+CELERY_RESULT_BACKEND = REDIS_URL      
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
