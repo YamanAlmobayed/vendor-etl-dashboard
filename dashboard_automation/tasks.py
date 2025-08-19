@@ -2,7 +2,6 @@ from celery import shared_task
 from playwright.sync_api import sync_playwright
 from concurrent.futures import ThreadPoolExecutor
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,6 @@ def auto_approve(self, username, password):
     MAIN_URL = "https://cp.elitewherego.net/admin/item/list"
     INDICES = [0, 2, 4, 6, 8]  # Default button indices
     logger.info(f"Processing with user: {username} {password}")
-    time.sleep(30)
 
     def process_item(btn_index):
         logger.info(btn_index)
