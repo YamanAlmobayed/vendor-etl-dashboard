@@ -149,6 +149,7 @@ venv.bak/
 
 # mkdocs documentation
 /site
+/scrapped_data/
 
 # mypy
 .mypy_cache/

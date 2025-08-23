@@ -57,6 +57,6 @@ def auto_approve(self,task_action, username, password):
     with ThreadPoolExecutor(max_workers=len(INDICES)) as executor:
         executor.map(process_item, INDICES)
         
-    return {'result': 'Task completed!'}
+    return {'result': 'All Images have been Approved'}
         
     
