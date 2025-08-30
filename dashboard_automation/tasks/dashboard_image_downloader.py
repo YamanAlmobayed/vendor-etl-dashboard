@@ -19,7 +19,7 @@ def get_next_link(page):
     except:
         return None
     
-@shared_task(bind=True,)
+@shared_task(bind=True, name='dashboard_image_downloader')
 def dashboard_image_downloader(self, vendor_name, vendor_email, vendor_password):
     logger.info("Task started")
     logger.info(self)

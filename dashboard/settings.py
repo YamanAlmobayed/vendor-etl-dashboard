@@ -54,6 +54,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_IGNORE_RESULT = False                          
 CELERY_STORE_ERRORS_EVEN_IF_IGNORED = True           
 CELERY_TASK_TRACK_STARTED = True   
+CELERY_CHORD_PROPAGATES = False
                    
 
 
@@ -163,6 +164,8 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles/')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

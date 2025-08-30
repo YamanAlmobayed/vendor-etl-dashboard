@@ -1,3 +1,7 @@
+#my files and folders 
+/scrapped_data/
+/.VSCodeCounter/
+
 # Created by https://www.toptal.com/developers/gitignore/api/django
 # Edit at https://www.toptal.com/developers/gitignore?templates=django
 
@@ -149,7 +153,6 @@ venv.bak/
 
 # mkdocs documentation
 /site
-/scrapped_data/
 
 # mypy
 .mypy_cache/

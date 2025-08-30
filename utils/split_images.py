@@ -44,6 +44,6 @@ def split_images_into_volumes(input_folder, volumes=4):
             src = os.path.join(input_folder, filename)
             dst = os.path.join(folder, filename)
             shutil.copy(src, dst)
-            print(f"Copied {filename} to {folder}")
+            #print(f"Copied {filename} to {folder}")
 
     print(f"Successfully split {total} images into {n} volumes.")

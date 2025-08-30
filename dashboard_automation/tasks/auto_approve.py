@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
-@shared_task(bind=True, base=Singleton, raise_on_duplicate=True, unique_on = ['task_action',])
-def auto_approve(self,task_action, username, password):
+@shared_task(bind=True, name='auto_approve', base=Singleton, raise_on_duplicate=True, unique_on = ['task',])
+def auto_approve(self,task, username, password):
     logger.info("Task started")
     logger.info(self)
     logger.info(f"Processing with user: {username} {password}")
