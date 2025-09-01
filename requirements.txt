@@ -25,4 +25,4 @@ celery-singleton
 pandas
 openpyxl
 requests
-netifaces
+beautifulsoup4

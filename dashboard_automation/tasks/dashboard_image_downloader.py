@@ -75,7 +75,7 @@ def dashboard_image_downloader(self, vendor_name, vendor_email, vendor_password)
 
         browser.close()
           # Correctly define the base directory using pathlib
-        scrapped_dir = Path('../../scrapped_data')
+        scrapped_dir = Path('scrapped_data')
 
         # Use the / operator for clean and correct path joining
         download_path = scrapped_dir / vendor_name / 'images'
@@ -105,7 +105,7 @@ def dashboard_image_downloader(self, vendor_name, vendor_email, vendor_password)
 
             
             shutil.rmtree(zip_path)
-            return {'result': f'{vendor_name} have been downloaded successfully'}
+            return {'result': f'{vendor_name} have been downloaded successfully', 'download_link': f'http://10.39.1.71/{zip_path}.zip'}
             
     
         except Exception as e:

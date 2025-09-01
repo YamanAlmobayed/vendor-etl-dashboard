@@ -4,6 +4,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from .tasks.auto_approve import auto_approve
 from .tasks.dashboard_image_downloader import dashboard_image_downloader
+from.tasks.category_extractor import scrape_categories
 from .tasks.image_uploader import image_uploader
 from utils.helper_methods import check_vendor_zip, determine_overall_status, get_subtask_statuses, get_lock_info, remove_paths
 from celery.result import AsyncResult
@@ -17,6 +18,7 @@ import os
 import logging
 from .tasks.categories_uploader import create_categories
 from utils.file_cleanup_manager import cleanup_task_files
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +56,27 @@ def start_dashboard_image_downloader(request):
             {"error": f"Missing required fields: {', '.join(missing_keys)}"},
             status=status.HTTP_400_BAD_REQUEST
         )
+    scrapped_dir = Path('scrapped_data')
+    
+    zip_file_path = scrapped_dir / f"{request.data['vendor_name']}.zip"
     if(check_vendor_zip(request.data["vendor_name"])):
-        return Response({ "message": "Vendor data already exists.", "download_link": f"http://10.39.1.71/scrapped_data/{request.data['vendor_name']}.zip",})
+        return Response({ "message": "Vendor data already exists.", "download_link": f"http://10.39.1.71/{zip_file_path}",})
     task = dashboard_image_downloader.delay(request.data["vendor_name"], request.data["vendor_email"], request.data["vendor_password"])
+    return Response({"task_id": task.id, "status": "Downloading started",})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def start_categories_extractor(request):
+    required_keys = ['vendor_name', 'vendor_email', 'vendor_password']
+    missing_keys = [key for key in required_keys if key not in request.data]
+
+    if missing_keys:
+        return Response(
+            {"error": f"Missing required fields: {', '.join(missing_keys)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    task = scrape_categories.delay(request.data["vendor_name"], request.data["vendor_email"], request.data["vendor_password"])
     return Response({"task_id": task.id, "status": "Downloading started"})
 
 @api_view(['POST'])
@@ -269,13 +289,6 @@ def task_status_view(request):
                         'message': main_task_info.get('message', 'Task completed successfully'),
                         'info': main_task_info
                     })
-                    
-                    # Add download link if available
-                    try:
-                        if request.data.get("vendor_name"):
-                            response['download_link'] = f"http://10.39.1.71/scrapped_data/{request.data['vendor_name']}.zip"
-                    except:
-                        pass
                     
                     return Response(response)
                 
