@@ -1,8 +1,10 @@
 import os
-import netifaces
+import shutil
 import logging
 from celery.result import AsyncResult
 from celery import states
+from pathlib import Path
+from typing import List, Union
 
 logger = logging.getLogger(__name__)
 
@@ -249,9 +251,47 @@ def check_vendor_zip(vendor_name):
     
     return os.path.isfile(full_path)
 
+def remove_paths(paths: Union[str, List[str]]) -> None:
+    """
+    Removes one or multiple files/folders (recursively for folders).
+
+    Args:
+        paths (Union[str, List[str]]): Path or list of paths to remove.
+
+    Raises:
+        FileNotFoundError: If a path does not exist.
+        PermissionError: If the program lacks permission.
+    """
+    if isinstance(paths, str):
+        paths = [paths]  # normalize single string into list
+
+    for path in paths:
+        target = Path(path)
+
+        if not target.exists():
+            logging.warning(f"Path not found: {target}")
+            continue
+
+        try:
+            if target.is_file():
+                target.unlink()
+                logging.info(f"File removed: {target}")
+            elif target.is_dir():
+                shutil.rmtree(target)
+                logging.info(f"Folder removed: {target}")
+            else:
+                logging.error(f"Unsupported path type: {target}")
+        except PermissionError as e:
+            logging.error(f"Permission denied while removing {target}: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Error removing {target}: {e}")
+            raise
+
 def get_lock_info(task, unique_on):
     tasks = {
         "image_approve": {"name":"auto_approve", "unique_on": {"task":unique_on}},
         "image_upload":  {"name":"auto_upload", "unique_on": {"vendor_email":unique_on}},
+        "create_categories":  {"name":"create_categories", "unique_on": {"task":unique_on}},
     }    
     return tasks[task]

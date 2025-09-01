@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from .tasks.auto_approve import auto_approve
 from .tasks.dashboard_image_downloader import dashboard_image_downloader
 from .tasks.image_uploader import image_uploader
-from utils.helper_methods import check_vendor_zip, determine_overall_status, get_subtask_statuses, get_lock_info
+from utils.helper_methods import check_vendor_zip, determine_overall_status, get_subtask_statuses, get_lock_info, remove_paths
 from celery.result import AsyncResult
 from celery import states
 from celery_singleton.exceptions import DuplicateTaskError
@@ -15,6 +15,8 @@ from rest_framework import status
 from django.core.files.storage import default_storage
 import os
 import logging
+from .tasks.categories_uploader import create_categories
+from utils.file_cleanup_manager import cleanup_task_files
 
 logger = logging.getLogger(__name__)
 
@@ -106,18 +108,71 @@ def start_image_uploader(request):
         }, status=202)
     
     except DuplicateTaskError:
+        remove_paths(full_path)
+        return Response({"status": "error", "message": "Task Already Running"}, status=409)
+    
+    except Exception as e:
+        remove_paths(full_path)
+        logger.error(f"Error starting image uploader task: {e}")
+
+        
+        return Response({
+            "error": "Failed to start processing task",
+            "message": str(e)
+        }, status=500)
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
+def start_categories_creator(request):
+    """
+    Start categories task with automatic cleanup registration
+    """
+    # Validate required fields
+    required_keys = ['vendor_email', 'vendor_password']
+    missing_keys = [key for key in required_keys if key not in request.data]
+    if missing_keys:
+        return Response(
+            {"error": f"Missing required fields: {', '.join(missing_keys)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Validate file upload
+    if 'file' not in request.FILES:
+        return Response({'error': 'No file uploaded'}, status=400)
+    
+    uploaded_file = request.FILES['file']
+    if not uploaded_file.name.endswith('.xlsx'):
+        return Response({'error': 'Invalid file type. Only .xlsx files are allowed.'}, status=400)
+    
+    try:
+        # Save the file temporarily
+        file_path = default_storage.save(uploaded_file.name, uploaded_file)
+        excel_path = os.path.join(default_storage.location, file_path)
+        
+        # Start the task with cleanup enabled
+        task = create_categories.delay(
+                'create_categories',
+                request.data["vendor_email"],
+                request.data["vendor_password"],
+                excel_path,
+                    )
+        
+        # Log the task start
+        logger.info(f"Started categories creation task {task.id} for file: {uploaded_file.name}")
+        
+        return Response({
+            "task_id": task.id,
+            "message": "Excel received. Uploading will begin shortly.",
+        }, status=202)
+    
+    except DuplicateTaskError:
+        remove_paths(excel_path)
         return Response({"status": "error", "message": "Task Already Running"}, status=409)
     
     except Exception as e:
         logger.error(f"Error starting image uploader task: {e}")
-        
-        # Try to cleanup the uploaded file if task creation failed
-        try:
-            if 'full_path' in locals() and os.path.exists(full_path):
-                os.remove(full_path)
-                logger.info(f"Cleaned up uploaded file after task creation failure: {full_path}")
-        except Exception as cleanup_error:
-            logger.error(f"Failed to cleanup uploaded file: {cleanup_error}")
+        remove_paths(excel_path)
         
         return Response({
             "error": "Failed to start processing task",
@@ -298,12 +353,13 @@ def terminate_task_view(request):
     )
     try:
         task_id = request.data["task_id"]
+        multithread = request.data.get("multithread", False)
         print(f"Starting termination for task {task_id}")
         
         # Revoke the main task
         try:
             result = AsyncResult(task_id)
-            if(request.data.get("multithread", False)):
+            if(multithread):
                 result.revoke(terminate=False)
             else:
                 result.revoke(terminate=True, signal='SIGKILL')
@@ -311,8 +367,6 @@ def terminate_task_view(request):
         except Exception as e:
             print(f"Error revoking task {task_id}: {e}")
         
-        # Remove singleton lock if it exists
-        ##TODO: Update this part to be generic for all tasks
         try:
             task = request.data.get("task")
             unique_on = request.data.get("unique_on")
@@ -329,6 +383,11 @@ def terminate_task_view(request):
         except Exception as e:
             print(f"Error removing singleton lock: {e}")
     
+        try:
+            if not multithread:
+                cleanup_task_files.apply_async(args=[task_id], countdown=5)
+        except Exception as e:
+            print(f"Error scheduling cleanup task: {e}")
         
         return Response({
             'status': 'success',

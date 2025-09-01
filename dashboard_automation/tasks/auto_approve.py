@@ -3,6 +3,7 @@ import logging
 from celery_singleton import Singleton
 from playwright.sync_api import sync_playwright
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,6 @@ def auto_approve(self,task, username, password):
     LOGIN_URL = "https://cp.elitewherego.net/login"
     MAIN_URL = "https://cp.elitewherego.net/admin/item/list"
     INDICES = [0, 2, 4, 6, 8]
-    
     def process_item(btn_index):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)

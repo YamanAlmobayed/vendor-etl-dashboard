@@ -15,7 +15,6 @@ from utils.file_cleanup_manager import cleanup_task_files
 from celery_singleton import Singleton
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
-import time
 from celery import current_app
 from utils.file_cleanup_manager import FileCleanupManager
 
