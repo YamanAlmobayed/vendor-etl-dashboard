@@ -89,51 +89,34 @@ def scrape_categories(self, vendor_name, vendor_email, vendor_password,):
                         }
                     )
                 else:
-                    # Multiple pages - process each page
+                     # Multiple pages - process each page
                     total_pages = len(categories_links)
                     logger.info(f"Found {total_pages} pages to process")
-                    
-                    # Process first page (current page)
-                    categories_data = extract_categories_from_page(soup)
-                    rows_dict_list.extend(categories_data)
-                    logger.info(f"Processed page 1/{total_pages + 1}, found {len(categories_data)} categories")
-                    
-                    # Update progress for first page
-                    progress = int((1 / (total_pages + 1)) * 100)
-                    self.update_state(
-                        state='PROGRESS',
-                        meta={
-                            'current': 1,
-                            'total': total_pages + 1,
-                            'progress': progress,
-                            'status': f"Processed page 1/{total_pages + 1}"
-                        }
-                    )
-                    
-                    # Process remaining pages
-                    for index, cat_link in enumerate(categories_links, 2):
+
+                    # Process all pages, including the first one, within the loop
+                    for index, cat_link in enumerate(categories_links, 1):
                         try:
                             cat_url = cat_link.get("href")
-                            logger.info(f"Processing page {index}/{total_pages + 1}: {cat_url}")
-                            
+                            logger.info(f"Processing page {index}/{total_pages}: {cat_url}")
+
                             soup = get_html(page, cat_url)
                             categories_data = extract_categories_from_page(soup)
                             rows_dict_list.extend(categories_data)
-                            
-                            logger.info(f"Processed page {index}/{total_pages + 1}, found {len(categories_data)} categories")
-                            
+
+                            logger.info(f"Processed page {index}/{total_pages}, found {len(categories_data)} categories")
+
                             # Update progress
-                            progress = int((index / (total_pages + 1)) * 100)
+                            progress = int((index / total_pages) * 100)
                             self.update_state(
                                 state='PROGRESS',
                                 meta={
                                     'current': index,
-                                    'total': total_pages + 1,
+                                    'total': total_pages,
                                     'progress': progress,
-                                    'status': f"Processed page {index}/{total_pages + 1}"
+                                    'status': f"Processed page {index}/{total_pages}"
                                 }
                             )
-                            
+
                         except Exception as e:
                             logger.error(f"Error processing page {index}: {e}")
                             continue
