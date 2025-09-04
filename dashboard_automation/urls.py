@@ -8,6 +8,7 @@ urlpatterns = [
    path('start_image_uploader/', views.start_image_uploader, name='start-image-uploader'),
    path('start_categories_creator/', views.start_categories_creator, name='start-categories-creator'),
    path('start_categories_extractor/', views.start_categories_extractor, name='start-categories-extractor'),
+   path('match_categories_with_items/', views.start_matching_items_with_categories, name='match-categories-with-items'),
    path('task_status/', views.task_status_view, name='task-status'),
    path('terminate_task/', views.terminate_task_view, name='task-terminate'),
 ]

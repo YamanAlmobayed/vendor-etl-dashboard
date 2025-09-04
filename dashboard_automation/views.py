@@ -4,9 +4,9 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from .tasks.auto_approve import auto_approve
 from .tasks.dashboard_image_downloader import dashboard_image_downloader
-from.tasks.category_extractor import scrape_categories
+from.tasks.categories_extractor import scrape_categories
 from .tasks.image_uploader import image_uploader
-from utils.helper_methods import check_vendor_zip, determine_overall_status, get_subtask_statuses, get_lock_info, remove_paths
+from utils.helper_methods import check_vendor_zip, determine_overall_status, get_subtask_statuses, get_lock_info, remove_paths, save_uploaded_file, validate_uploaded_file
 from celery.result import AsyncResult
 from celery import states
 from celery_singleton.exceptions import DuplicateTaskError
@@ -19,6 +19,7 @@ import logging
 from .tasks.categories_uploader import create_categories
 from utils.file_cleanup_manager import cleanup_task_files
 from pathlib import Path
+from .tasks.match_categories_with_items import match_categories_with_items
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +199,103 @@ def start_categories_creator(request):
             "error": "Failed to start processing task",
             "message": str(e)
         }, status=500)
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
+def start_matching_items_with_categories(request):
+    """
+    Start categories creator task with uploaded Excel files.
+    
+    Expected files:
+    - categories_file: Excel file containing categories data
+    - items_file: Excel file containing items data
+    
+    Returns:
+        Response: Task ID and status message
+    """
+    uploaded_files = {}
+    upload_file_fields = ['categories_file', 'items_file']
+    saved_file_paths = []
+    file_paths = {}  # Initialize outside the loop
+    
+    try:
+        # Validate required files are present
+        for field_name in upload_file_fields:
+            if field_name not in request.FILES:
+                return Response(
+                    {'error': f'Missing required file: {field_name}'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Validate each uploaded file
+        for field_name in upload_file_fields:
+            file_obj = request.FILES[field_name]
+            validation_error = validate_uploaded_file(file_obj, field_name, ['.xlsx'])
+            if validation_error:
+                return Response(
+                    {'error': validation_error['error']}, 
+                    status=validation_error['status']
+                )
+            uploaded_files[field_name] = file_obj
+        
+        # Save uploaded files temporarily
+        for field_name, file_obj in uploaded_files.items():
+            try:
+                file_path = save_uploaded_file(file_obj)
+                saved_file_paths.append(file_path)
+                file_paths[field_name] = file_path
+                logger.info(f"Saved {field_name} to: {file_path}")
+            except Exception as e:
+                # Cleanup any already saved files
+                remove_paths(saved_file_paths)
+                return Response(
+                    {
+                        'error': f'Failed to save {field_name}',
+                        'message': str(e)
+                    }, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        # Start the Celery task
+        task = match_categories_with_items.delay(
+            file_paths['categories_file'],
+            file_paths['items_file'],
+            'media/cats_with_id.xlsx',
+        )
+        
+        # Log successful task start
+        logger.info(
+            f"Started categories matching task {task.id} for user {request.user.id}. "
+            f"Files: {uploaded_files['categories_file'].name}, {uploaded_files['items_file'].name}"
+        )
+        
+        return Response(
+            {
+                'task_id': task.id,
+                'message': 'Excel files received. Category matching started.',
+                'status': 'processing'
+            }, 
+            status=status.HTTP_202_ACCEPTED
+        )
+        
+    except Exception as e:
+        # Log the error with context
+        logger.error(
+            f"Unexpected error in start_categories_creator for user {request.user.id}: {e}",
+            exc_info=True
+        )
+        
+        # Cleanup any saved files
+        remove_paths(saved_file_paths)
+        
+        return Response(
+            {
+                'error': 'Failed to start processing task',
+                'message': 'An unexpected error occurred. Please try again.'
+            }, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

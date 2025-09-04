@@ -5,6 +5,8 @@ from celery.result import AsyncResult
 from celery import states
 from pathlib import Path
 from typing import List, Union
+from rest_framework import status
+from django.core.files.storage import default_storage
 
 logger = logging.getLogger(__name__)
 
@@ -295,3 +297,49 @@ def get_lock_info(task, unique_on):
         "create_categories":  {"name":"create_categories", "unique_on": {"task":unique_on}},
     }    
     return tasks[task]
+
+def validate_uploaded_file(file, field_name, allowd_extensions):
+    """
+    Validate uploaded file type and extension.
+    
+    Args:
+        file: Uploaded file object
+        field_name: Name of the form field
+        
+    Returns:
+        dict: Error response if validation fails, None if valid
+    """
+    if not file:
+        return {
+            'error': f'No {field_name} uploaded',
+            'status': status.HTTP_400_BAD_REQUEST
+        }
+    
+    file_extension = Path(file.name).suffix.lower()
+    if file_extension not in allowd_extensions:
+        return {
+            'error': f'Invalid file type for {field_name}. Only {", ".join(allowd_extensions)} files are allowed.',
+            'status': status.HTTP_400_BAD_REQUEST
+        }
+    
+    return None
+
+def save_uploaded_file(file):
+    """
+    Save uploaded file to storage and return full path.
+    
+    Args:
+        file: Uploaded file object
+        
+    Returns:
+        str: Full path to saved file
+        
+    Raises:
+        Exception: If file saving fails
+    """
+    try:
+        file_path = default_storage.save(file.name, file)
+        return os.path.join(default_storage.location, file_path)
+    except Exception as e:
+        logger.error(f"Failed to save file {file.name}: {e}")
+        raise
