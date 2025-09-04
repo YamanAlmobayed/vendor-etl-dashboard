@@ -295,6 +295,9 @@ def get_lock_info(task, unique_on):
         "image_approve": {"name":"auto_approve", "unique_on": {"task":unique_on}},
         "image_upload":  {"name":"auto_upload", "unique_on": {"vendor_email":unique_on}},
         "create_categories":  {"name":"create_categories", "unique_on": {"task":unique_on}},
+        "create_addon_categories":  {"name":"create_addon_categories", "unique_on": {"task":unique_on}},
+        "create_addons":  {"name":"create_addons", "unique_on": {"task":unique_on}},
+        "link_items_addons":  {"name":"link_items_addons", "unique_on": {"task":unique_on}},
     }    
     return tasks[task]
 

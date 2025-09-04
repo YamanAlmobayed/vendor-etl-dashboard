@@ -16,10 +16,13 @@ from rest_framework import status
 from django.core.files.storage import default_storage
 import os
 import logging
-from .tasks.categories_uploader import create_categories
+from .tasks.categories_creator import create_categories
 from utils.file_cleanup_manager import cleanup_task_files
 from pathlib import Path
 from .tasks.match_categories_with_items import match_categories_with_items
+from .tasks.addon_categories_creator import create_addon_categories
+from .tasks.addons_creator import create_addons
+from .tasks.addons_items_linker import link_items_addons
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +176,7 @@ def start_categories_creator(request):
         
         # Start the task with cleanup enabled
         task = create_categories.delay(
-                'create_categories',
+                'create_addon_categories',
                 request.data["vendor_email"],
                 request.data["vendor_password"],
                 excel_path,
@@ -192,7 +195,181 @@ def start_categories_creator(request):
         return Response({"status": "error", "message": "Task Already Running"}, status=409)
     
     except Exception as e:
-        logger.error(f"Error starting image uploader task: {e}")
+        logger.error(f"Error starting categories creator task: {e}")
+        remove_paths(excel_path)
+        
+        return Response({
+            "error": "Failed to start processing task",
+            "message": str(e)
+        }, status=500)
+        
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
+def start_addons_creator(request):
+    """
+    Start categories task with automatic cleanup registration
+    """
+    # Validate required fields
+    required_keys = ['vendor_email', 'vendor_password']
+    missing_keys = [key for key in required_keys if key not in request.data]
+    if missing_keys:
+        return Response(
+            {"error": f"Missing required fields: {', '.join(missing_keys)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Validate file upload
+    if 'file' not in request.FILES:
+        return Response({'error': 'No file uploaded'}, status=400)
+    
+    uploaded_file = request.FILES['file']
+    if not uploaded_file.name.endswith('.xlsx'):
+        return Response({'error': 'Invalid file type. Only .xlsx files are allowed.'}, status=400)
+    
+    try:
+        # Save the file temporarily
+        file_path = default_storage.save(uploaded_file.name, uploaded_file)
+        excel_path = os.path.join(default_storage.location, file_path)
+        
+        # Start the task with cleanup enabled
+        task = create_addons.delay(
+                'create_addons',
+                request.data["vendor_email"],
+                request.data["vendor_password"],
+                excel_path,
+                    )
+        
+        # Log the task start
+        logger.info(f"Started addons creator task {task.id} for file: {uploaded_file.name}")
+        
+        return Response({
+            "task_id": task.id,
+            "message": "Excel received. Uploading will begin shortly.",
+        }, status=202)
+    
+    except DuplicateTaskError:
+        remove_paths(excel_path)
+        return Response({"status": "error", "message": "Task Already Running"}, status=409)
+    
+    except Exception as e:
+        logger.error(f"Error addons creator creator task: {e}")
+        remove_paths(excel_path)
+        
+        return Response({
+            "error": "Failed to start processing task",
+            "message": str(e)
+        }, status=500)
+        
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
+def start_addons_items_linker(request):
+    """
+    Start addons items linking task with automatic cleanup registration
+    """
+    # Validate required fields
+    required_keys = ['vendor_email', 'vendor_password']
+    missing_keys = [key for key in required_keys if key not in request.data]
+    if missing_keys:
+        return Response(
+            {"error": f"Missing required fields: {', '.join(missing_keys)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Validate file upload
+    if 'file' not in request.FILES:
+        return Response({'error': 'No file uploaded'}, status=400)
+    
+    uploaded_file = request.FILES['file']
+    if not uploaded_file.name.endswith('.xlsx'):
+        return Response({'error': 'Invalid file type. Only .xlsx files are allowed.'}, status=400)
+    
+    try:
+        # Save the file temporarily
+        file_path = default_storage.save(uploaded_file.name, uploaded_file)
+        excel_path = os.path.join(default_storage.location, file_path)
+        
+        # Start the task with cleanup enabled
+        task = link_items_addons.delay(
+                'link_items_addons',
+                request.data["vendor_email"],
+                request.data["vendor_password"],
+                excel_path,
+                    )
+        
+        # Log the task start
+        logger.info(f"Started addons items linking task {task.id} for file: {uploaded_file.name}")
+        
+        return Response({
+            "task_id": task.id,
+            "message": "Excel received. linking will begin shortly.",
+        }, status=202)
+    
+    except DuplicateTaskError:
+        remove_paths(excel_path)
+        return Response({"status": "error", "message": "Task Already Running"}, status=409)
+    
+    except Exception as e:
+        logger.error(f"Error addons items linking task: {e}")
+        remove_paths(excel_path)
+        
+        return Response({
+            "error": "Failed to start processing task",
+            "message": str(e)
+        }, status=500)
+        
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
+def start_addon_categories_creator(request):
+    """
+    Start addon categories task with automatic cleanup registration
+    """
+    # Validate required fields
+    required_keys = ['vendor_email', 'vendor_password']
+    missing_keys = [key for key in required_keys if key not in request.data]
+    if missing_keys:
+        return Response(
+            {"error": f"Missing required fields: {', '.join(missing_keys)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Validate file upload
+    if 'file' not in request.FILES:
+        return Response({'error': 'No file uploaded'}, status=400)
+    
+    uploaded_file = request.FILES['file']
+    if not uploaded_file.name.endswith('.xlsx'):
+        return Response({'error': 'Invalid file type. Only .xlsx files are allowed.'}, status=400)
+    
+    try:
+        # Save the file temporarily
+        file_path = default_storage.save(uploaded_file.name, uploaded_file)
+        excel_path = os.path.join(default_storage.location, file_path)
+        
+        # Start the task with cleanup enabled
+        task = create_addon_categories.delay(
+                'create_addon_categories',
+                request.data["vendor_email"],
+                request.data["vendor_password"],
+                excel_path,
+                    )
+        
+        # Log the task start
+        logger.info(f"Started addon categories creation task {task.id} for file: {uploaded_file.name}")
+        
+        return Response({
+            "task_id": task.id,
+            "message": "Excel received. Uploading will begin shortly.",
+        }, status=202)
+    
+    except DuplicateTaskError:
+        remove_paths(excel_path)
+        return Response({"status": "error", "message": "Task Already Running"}, status=409)
+    
+    except Exception as e:
+        logger.error(f"Error starting addon categories creator task: {e}")
         remove_paths(excel_path)
         
         return Response({
