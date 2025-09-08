@@ -346,3 +346,30 @@ def save_uploaded_file(file):
     except Exception as e:
         logger.error(f"Failed to save file {file.name}: {e}")
         raise
+    
+def perform_vendor_login(page, login_url, vendor_email, vendor_password):
+    """Perform vendor login with error handling."""
+    try:
+        page.goto(login_url)
+        page.fill("#email", vendor_email)
+        page.fill("input[type='password']", vendor_password)
+        page.click("button[type='submit']")
+        page.wait_for_url('https://vendor.elitewherego.com/')
+        logger.info("Vendor login successful")
+    except Exception as e:
+        logger.error(f"Login failed: {e}")
+        raise
+
+def update_task_progress(self, current, total, item_type):
+    """Update task progress consistently."""
+    progress = int((current / total) * 100)
+    self.update_state(
+        state='PROGRESS',
+        meta={
+            'current': current,
+            'total': total,
+            'progress': progress,
+            'status': f"Processed {current}/{total} {item_type}"
+        }
+    )
+    

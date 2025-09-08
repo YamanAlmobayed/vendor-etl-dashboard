@@ -45,3 +45,11 @@ def clean_price(value):
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value)
+
+
+def format_number(value):
+    try:
+        num = float(value)
+        return str(int(num)) if num.is_integer() else str(num)
+    except:
+        return str(value)
