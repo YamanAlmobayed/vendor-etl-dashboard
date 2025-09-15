@@ -81,7 +81,7 @@ def handle_task_start_error(error, file_paths=None, task_name="processing"):
 def index(request):
     """API index endpoint."""
     return Response({"message": "Welcome to the Dashboard Automation API!"})
-
+        # Ensure output directory exists
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def start_auto_approve(request):

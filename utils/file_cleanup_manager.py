@@ -3,9 +3,7 @@ import shutil
 import redis
 from celery import shared_task
 from celery.result import AsyncResult
-from celery.signals import task_success, task_failure, task_revoked
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 redis_client = redis.StrictRedis(host='redis', port=6379, db=0, decode_responses=True)
