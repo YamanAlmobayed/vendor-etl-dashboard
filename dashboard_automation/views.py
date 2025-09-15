@@ -82,6 +82,7 @@ def index(request):
     """API index endpoint."""
     return Response({"message": "Welcome to the Dashboard Automation API!"})
         # Ensure output directory exists
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def start_auto_approve(request):
@@ -445,7 +446,7 @@ def start_matching_items_with_categories(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def task_status_view(request):
     """Get task status including subtasks and monitor tasks."""

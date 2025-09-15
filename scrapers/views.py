@@ -13,6 +13,11 @@ from celery.result import AsyncResult
 from celery import states
 from celery_singleton.util import generate_lock
 from .tasks.categories_scraper import scrape_menu_categories
+from utils.helper_methods import check_vendor_zip
+from django.core.files.storage import default_storage
+import os
+from .tasks.items_downloader import scrape_menu_items
+from pathlib import Path
 
 # Create your views here.
 logger = logging.getLogger(__name__)
@@ -86,138 +91,58 @@ def start_categories_scraper(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def task_status_view(request):
-    """Get task status including subtasks and monitor tasks."""
-    validation_error = validate_required_fields(request.data, ['task_id'])
+def start_items_downloader(request):
+    """Start dashboard image downloader task."""
+    validation_error = validate_required_fields(
+        request.data, 
+        ['vendor_name', 'vendor_url',]
+    )
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
-    
-    try:
-        task_id = request.data.get("task_id")
-        main_task_result = AsyncResult(task_id)
-        
-        response = {'task_id': task_id}
-        
-        logger.debug(f"Main Task ID: {task_id}, State: {main_task_result.state}")
-        
-        # Check if task was terminated
-        if redis_client.get(f"terminated:{task_id}"):
-            response.update({
-                'status': 'terminated',
-                'message': 'Task was terminated by user',
-                'progress': {'current': 0, 'total': 0, 'percentage': 0}
-            })
-            return Response(response)
-        
-        # Handle different task states
-        if main_task_result.state == states.FAILURE:
-            response.update({
-                'status': 'failed',
-                'message': str(main_task_result.info),
-                'error': str(main_task_result.info)
-            })
-            return Response(response)
-        
-        elif main_task_result.state == states.PENDING:
-            response.update({
-                'status': 'not_found',
-                'message': 'There is no current task with this ID.'
-            })
-            return Response(response)
-        
-        elif main_task_result.state == states.REVOKED:
-            response.update({
-                'status': 'revoked',
-                'message': 'Task was revoked/terminated.'
-            })
-            return Response(response)
-        
-        elif main_task_result.state == states.SUCCESS:
-            try:
-                main_task_info = main_task_result.get()
-                
-                # Get subtask information
-                subtask_ids = []
-                monitor_task_id = None
-                
-                if isinstance(main_task_info, dict):
-                    subtask_ids = main_task_info.get('subtask_ids', [])
-                    monitor_task_id = main_task_info.get('monitor_task_id')
-                
-                # Try Redis if not in main task result
-                if not subtask_ids:
-                    subtask_ids = list(redis_client.smembers(f"subtasks:{task_id}"))
-                
-                if not subtask_ids:
-                    # No subtasks, return main task result
-                    response.update({
-                        'status': 'completed',
-                        'message': main_task_info.get('message', 'Task completed successfully'),
-                        'info': main_task_info
-                    })
-                    return Response(response)
-                
-                # Process subtasks and monitor task
-                subtask_statuses = get_subtask_statuses(subtask_ids, redis_client)
-                
-                monitor_status = None
-                if monitor_task_id:
-                    monitor_result = AsyncResult(monitor_task_id)
-                    monitor_status = {
-                        'task_id': monitor_task_id,
-                        'state': monitor_result.state,
-                        'info': None
-                    }
-                    
-                    if monitor_result.state == states.SUCCESS:
-                        try:
-                            monitor_status['info'] = monitor_result.get()
-                        except Exception as e:
-                            logger.warning(f"Error getting monitor task result: {e}")
-                    elif monitor_result.state == states.FAILURE:
-                        monitor_status['info'] = str(monitor_result.info)
-                
-                # Determine overall status
-                overall_status = determine_overall_status(subtask_statuses, monitor_status)
-                
-                response.update(overall_status)
-                response['subtasks'] = subtask_statuses
-                
-                if monitor_status:
-                    response['monitor_task'] = monitor_status
-                
-                # Add download link if completed successfully
-                if overall_status['status'] == 'completed' and request.data.get("vendor_name"):
-                    response['download_link'] = f"http://10.39.1.71/scrapped_data/{request.data['vendor_name']}.zip"
-                
-                return Response(response)
-                
-            except Exception as e:
-                logger.error(f"Error processing successful main task: {e}")
-                response.update({
-                    'state': 'ERROR',
-                    'status': 'error',
-                    'message': f'Error checking task status: {str(e)}'
-                })
-                return Response(response)
-        
-        else:
-            # Handle other states (STARTED, RETRY, etc.)
-            response.update({
-                'state': main_task_result.state,
-                'status': 'preparing',
-                'message': 'Task is being prepared...',
-                'info': main_task_result.info
-            })
-            return Response(response)
-    
-    except Exception as e:
-        logger.error(f"Error in task_status_view: {e}")
-        return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def terminate_task_view(request):
+    scrapped_dir = Path('scrapped_data')
+    zip_file_path = scrapped_dir / f"{request.data['vendor_name']}.zip"
+    
+    if check_vendor_zip(request.data["vendor_name"]):
+        return Response({
+            "message": "Vendor data already exists.",
+            "download_link": f"http://10.39.1.71/{zip_file_path}",
+        })
+    try:
+        if request.FILES:
+            if 'file' not in request.FILES:
+                return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+
+            uploaded_file = request.FILES['file']
+            if not uploaded_file.name.endswith('.xlsx'):
+                return Response(
+                    {'error': 'Invalid file type. Only .xlsx files are allowed.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            full_path = None
+
+            file_path = default_storage.save(uploaded_file.name, uploaded_file)
+            full_path = os.path.join(default_storage.location, file_path)        
+
+            task = scrape_menu_items.delay(
+                request.data["vendor_url"], 
+                request.data["vendor_name"], 
+                "multi",
+                full_path
+            )
+            return Response({"task_id": task.id, "status": "Downloading started"})
+        else:
+            task = scrape_menu_items.delay(
+                request.data["vendor_url"], 
+                request.data["vendor_name"], 
+                "single",
+            )
+            return Response({"task_id": task.id, "status": "Downloading started"})
+            
+    except Exception as e:
+        return handle_task_start_error(e, task_name="items_scraper")
+
     """Terminate a running task and clean up resources."""
     validation_error = validate_required_fields(request.data, ['task_id'])
     if validation_error:
