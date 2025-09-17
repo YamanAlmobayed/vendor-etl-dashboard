@@ -5,12 +5,10 @@ from rest_framework import status
 import logging
 import redis
 
-from utils.helper_methods import (
-     determine_overall_status, get_subtask_statuses, 
+from utils.helper_methods import ( 
     get_lock_info, remove_paths)
 from utils.file_cleanup_manager import cleanup_task_files
 from celery.result import AsyncResult
-from celery import states
 from celery_singleton.util import generate_lock
 from .tasks.categories_scraper import scrape_menu_categories
 from utils.helper_methods import check_vendor_zip
@@ -19,10 +17,8 @@ import os
 from .tasks.items_downloader import scrape_menu_items
 from pathlib import Path
 
-# Create your views here.
 logger = logging.getLogger(__name__)
 
-# Redis connection
 redis_client = redis.StrictRedis(
     host='redis',
     port=6379,
@@ -40,25 +36,10 @@ def validate_required_fields(request_data, required_keys):
         }
     return None
 
-def handle_duplicate_task_error(file_paths=None):
-    """Handle duplicate task error and cleanup files if provided."""
-    if file_paths:
-        if isinstance(file_paths, list):
-            remove_paths(file_paths)
-        else:
-            remove_paths([file_paths])
-    return Response(
-        {"status": "error", "message": "Task Already Running"}, 
-        status=status.HTTP_409_CONFLICT
-    )
-
 def handle_task_start_error(error, file_paths=None, task_name="processing"):
     """Handle task start error with cleanup and logging."""
     if file_paths:
-        if isinstance(file_paths, list):
-            remove_paths(file_paths)
-        else:
-            remove_paths([file_paths])
+        remove_paths(file_paths if isinstance(file_paths, list) else [file_paths])
     
     logger.error(f"Error starting {task_name} task: {error}")
     return Response(
@@ -68,6 +49,14 @@ def handle_task_start_error(error, file_paths=None, task_name="processing"):
         }, 
         status=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
+
+def create_task_response(task_id, message="Task started successfully"):
+    """Create standardized task response."""
+    return Response({
+        "task_id": task_id, 
+        "status": "started",
+        "message": message
+    }, status=status.HTTP_202_ACCEPTED)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -85,17 +74,17 @@ def start_categories_scraper(request):
             request.data["vendor_url"], 
             request.data["vendor_name"]
         )
-        return Response({"task_id": task.id, "status": "Downloading started"})
+        return create_task_response(task.id, "Categories scraping started")
     except Exception as e:
         return handle_task_start_error(e, task_name="categories scraper")
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def start_items_downloader(request):
-    """Start dashboard image downloader task."""
+    """Start items downloader task."""
     validation_error = validate_required_fields(
         request.data, 
-        ['vendor_name', 'vendor_url',]
+        ['vendor_name']
     )
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
@@ -108,6 +97,7 @@ def start_items_downloader(request):
             "message": "Vendor data already exists.",
             "download_link": f"http://10.39.1.71/{zip_file_path}",
         })
+
     try:
         if request.FILES:
             if 'file' not in request.FILES:
@@ -120,30 +110,38 @@ def start_items_downloader(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            full_path = None
-
             file_path = default_storage.save(uploaded_file.name, uploaded_file)
             full_path = os.path.join(default_storage.location, file_path)        
 
             task = scrape_menu_items.delay(
-                request.data["vendor_url"], 
+                None, 
                 request.data["vendor_name"], 
                 "multi",
                 full_path
             )
-            return Response({"task_id": task.id, "status": "Downloading started"})
+            return create_task_response(task.id, "Multi-menu items scraping started")
         else:
+            vendor_url = request.data.get("vendor_url")
+            if not vendor_url:
+                return Response(
+                    {'error': 'Either upload a file or provide vendor_url for single menu scraping'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             task = scrape_menu_items.delay(
-                request.data["vendor_url"], 
+                vendor_url, 
                 request.data["vendor_name"], 
                 "single",
             )
-            return Response({"task_id": task.id, "status": "Downloading started"})
+            return create_task_response(task.id, "Single-menu items scraping started")
             
     except Exception as e:
-        return handle_task_start_error(e, task_name="items_scraper")
+        return handle_task_start_error(e, task_name="items scraper")
 
-    """Terminate a running task and clean up resources."""
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def terminate_scraper_task_view(request):
+    """Terminate a running scraper task and clean up resources."""
     validation_error = validate_required_fields(request.data, ['task_id'])
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
@@ -152,9 +150,8 @@ def start_items_downloader(request):
         task_id = request.data["task_id"]
         multithread = request.data.get("multithread", False)
         
-        logger.info(f"Starting termination for task {task_id}")
+        logger.info(f"Starting termination for scraper task {task_id}")
         
-        # Revoke the main task
         try:
             result = AsyncResult(task_id)
             if multithread:
@@ -165,7 +162,6 @@ def start_items_downloader(request):
         except Exception as e:
             logger.error(f"Error revoking task {task_id}: {e}")
         
-        # Remove singleton lock if provided
         try:
             task = request.data.get("task")
             unique_on = request.data.get("unique_on")
@@ -182,7 +178,6 @@ def start_items_downloader(request):
         except Exception as e:
             logger.error(f"Error removing singleton lock: {e}")
         
-        # Schedule cleanup task
         try:
             if not multithread:
                 cleanup_task_files.apply_async(args=[task_id], countdown=5)
@@ -191,11 +186,11 @@ def start_items_downloader(request):
         
         return Response({
             'status': 'success',
-            'message': f'Successfully terminated task {task_id}.',
+            'message': f'Successfully terminated scraper task {task_id}.',
         })
         
     except Exception as e:
-        logger.error(f"Error terminating task: {e}")
+        logger.error(f"Error terminating scraper task: {e}")
         return Response(
             {'status': 'error', 'message': str(e)}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

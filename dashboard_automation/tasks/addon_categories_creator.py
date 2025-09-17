@@ -19,7 +19,6 @@ def create_addon_categories(self, task, vendor_email, vendor_password, excel_pat
         
         FileCleanupManager.register_files_for_cleanup(task_id, [excel_path])
         
-        # Read Excel data
         excel_data = _read_addon_categories_excel(excel_path)
         total_count = len(excel_data)
         logger.info(f"Found {total_count} addon categories to process")
@@ -41,7 +40,8 @@ def create_addon_categories(self, task, vendor_email, vendor_password, excel_pat
         logger.info(f"Task completed. Successfully processed {processed_count}/{total_count} addon categories")
         
         return {
-            'result': f'Addon category creation completed. Processed {processed_count}/{total_count} addon categories successfully',
+            'status': 'completed',
+            'message': f'Addon category creation completed. Processed {processed_count}/{total_count} addon categories successfully',
             'processed': processed_count,
             'total': total_count
         }
@@ -77,7 +77,6 @@ def _process_addon_categories_with_browser(self, vendor_email, vendor_password, 
         page = context.new_page()
         
         try:
-            # Login
             perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
             page.goto(MAIN_URL)
             
@@ -86,11 +85,9 @@ def _process_addon_categories_with_browser(self, vendor_email, vendor_password, 
                 try:
                     logger.info(f"Processing addon category {index + 1}/{len(excel_data)}: {row['category']}")
                     
-                    # Navigate to create form
                     page.click("a[href='https://vendor.elitewherego.com/addoncategories/create']")
                     page.wait_for_selector('div.max-w-3xl.overflow-hidden.bg-white.rounded.shadow')
                     
-                    # Fill form
                     page.fill("#name", str(row['category']))
                     page.select_option("#status", "Active")
                     page.select_option("#is_required", str(row['category_status']))
@@ -98,14 +95,12 @@ def _process_addon_categories_with_browser(self, vendor_email, vendor_password, 
                     if row['category_status'] == 'No':
                         page.fill("#count", str(row['count']))
                     
-                    # Submit form
                     page.click("button[type='submit']")
                     page.wait_for_selector('table.w-full.whitespace-nowrap')
                     
                     processed_count += 1
                     logger.info(f"Addon category '{row['category']}' created successfully")
                     
-                    # Update progress
                     update_task_progress(self, processed_count, len(excel_data), "addon categories")
                     
                 except Exception as e:

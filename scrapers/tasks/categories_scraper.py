@@ -1,24 +1,12 @@
 from celery import shared_task
 import os
-import sys
 import time
 import traceback
 from urllib.parse import urlparse
-
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
-
 from utils.excel_handlers import append_to_excel
 from pathlib import Path
-
-try:
-    script_path = os.path.realpath(__file__)
-except NameError:
-    script_path = os.path.realpath(sys.argv[0])
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(script_path), '..'))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
 
 class MenuToExcel:
     def __init__(self, **kwargs):
@@ -50,7 +38,7 @@ class MenuToExcel:
             'deliveroo': "a.UICard-fc546e6554c9acdb.undefined.UICard-469f33f83128feb3.UICard-20e6f74249484648",
             'talabat': "div[data-testid='category-item-component']",
             'instashop': "div.category-item.ng-star-inserted",
-            'noon': ""  # Add noon selector when implemented
+            'noon': ""
         }
         return selectors.get(parser_type, "")
 
@@ -77,14 +65,12 @@ class MenuToExcel:
         return None
 
     def categories_driver(self):
-        # Auto-detect parser if not provided
         if not self.parser:
             self.parser = self.detect_parser_from_url()
             
         if not self.parser:
             raise ValueError(f"Unable to determine parser for URL: {self.menu_url}")
         
-        # Set appropriate selector
         if not self.categories_list:
             selector = self.get_categories_selector(self.parser)
             if not selector:
@@ -119,7 +105,7 @@ class MenuToExcel:
                 excel_attributes = {'Category': category_name, 'url': category_url}
                 append_to_excel(self.report_path, excel_attributes=excel_attributes)
             except Exception as e:
-                print("Error processing category:", e)
+                print(f"Error processing category: {e}")
                 traceback.print_exc()
 
     def instashop_parser(self, categories):
@@ -127,10 +113,10 @@ class MenuToExcel:
             try:
                 category_name = category.select_one("div.category-text.mt-1").text.strip()
                 category_url = category.select_one("a.text-decoration-none.ng-star-inserted")["href"]
-                excel_attributes = {'Category': category_name, 'url': category_url}
+                excel_attributes = {'Category': category_name, 'url': f'https://instashop.com{category_url}'}
                 append_to_excel(self.report_path, excel_attributes=excel_attributes)
             except Exception as e:
-                print("Error processing category:", e)
+                print(f"Error processing category: {e}")
                 traceback.print_exc()
 
     def talabat_parser(self, categories):
@@ -142,7 +128,7 @@ class MenuToExcel:
                 sub_categories = [f"https://www.talabat.com{a['href']}" for a in category.select("a[data-testid='subCategory-a']")]
                 categories_dict_list.append({'category_name': category_name, 'sub_categories': sub_categories})
             except Exception as e:
-                print("Error parsing category:", e)
+                print(f"Error parsing category: {e}")
                 traceback.print_exc()
 
         with sync_playwright() as p:
@@ -178,7 +164,7 @@ class MenuToExcel:
                                 'url': paginated_url
                             })
                     except Exception as e:
-                        print("Error processing sub-category:", e)
+                        print(f"Error processing sub-category: {e}")
                         traceback.print_exc()
 
             browser.close()
@@ -189,33 +175,19 @@ class MenuToExcel:
 
 @shared_task(bind=True, name="scrape_menu_categories")
 def scrape_menu_categories(self, menu_url, vendor_name):
-    """
-    Celery task to scrape menu categories from various providers.
-    
-    Args:
-        menu_url (str): The URL to scrape categories from
-        report_path (str): Path where the Excel report will be saved
-        
-    Returns:
-        dict: Task result with status and message
-    """
+    """Celery task to scrape menu categories from various providers."""
     try:
-        # Ensure output directory exists
-        # Setup paths
         scrapped_dir = Path('scrapped_data')
         reports_path = scrapped_dir / vendor_name / 'reports'
         reports_path.mkdir(parents=True, exist_ok=True)
         excel_file_path = reports_path / "categories_urls.xlsx"
-        #os.makedirs(os.path.dirname(excel_file_path), exist_ok=True)
         
-        # Initialize and run scraper
         scraper = MenuToExcel(
             menu_url=menu_url,
             report_path=excel_file_path,
             is_headless=True
         )
         
-        # Update task state
         self.update_state(
             state='PROGRESS',
             meta={'message': f'Starting to scrape categories from {menu_url}'}
@@ -224,12 +196,12 @@ def scrape_menu_categories(self, menu_url, vendor_name):
         scraper.categories_driver()
         
         return {
-            'status': 'SUCCESS',
+            'status': 'completed',
+            'message': 'Categories scraping completed successfully',
             'download_link': f'http://10.39.1.71/{excel_file_path}'
         }
         
     except Exception as e:
-        # Update task state on failure
         self.update_state(
             state='FAILURE',
             meta={
@@ -237,4 +209,4 @@ def scrape_menu_categories(self, menu_url, vendor_name):
                 'traceback': traceback.format_exc()
             }
         )
-        raise e
+        raise

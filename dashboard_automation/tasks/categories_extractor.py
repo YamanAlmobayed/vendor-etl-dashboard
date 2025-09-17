@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from celery import shared_task
 import logging
-from utils.helper_methods import perform_vendor_login, update_task_progress
+from utils.helper_methods import perform_vendor_login
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ def scrape_categories(self, vendor_name, vendor_email, vendor_password):
     try:
         self.update_state(state='PROGRESS', meta={'message': 'Initializing scraping task'})
         
-        # Setup paths
         scrapped_dir = Path('scrapped_data')
         reports_path = scrapped_dir / vendor_name / 'reports'
         reports_path.mkdir(parents=True, exist_ok=True)
@@ -24,14 +23,14 @@ def scrape_categories(self, vendor_name, vendor_email, vendor_password):
         
         rows_dict_list = _scrape_categories_with_browser(self, vendor_email, vendor_password)
         
-        # Save to Excel
         df = pd.DataFrame(rows_dict_list)
         df.to_excel(excel_file_path, index=False)
         logger.info(f"Excel saved to: {excel_file_path}")
         logger.info(f"Total categories scraped: {len(rows_dict_list)}")
         
         return {
-            'result': f'Category scraping completed. Scraped {len(rows_dict_list)} categories successfully',
+            'status': 'completed',
+            'message': f'Category scraping completed. Scraped {len(rows_dict_list)} categories successfully',
             'total_scraped': len(rows_dict_list),
             'download_link': f'http://10.39.1.71/{excel_file_path}'
         }
@@ -52,21 +51,17 @@ def _scrape_categories_with_browser(self, vendor_email, vendor_password):
         page = context.new_page()
         
         try:
-            # Login
             perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
             page.goto(MAIN_URL)
             page.wait_for_selector('table.w-full.whitespace-nowrap')
             
-            # Get initial page content
             soup = BeautifulSoup(page.content(), "html.parser")
             rows_dict_list = []
             
-            # Check for pagination
             categories_links = soup.select("a[href*='?page=']")
             categories_links = categories_links[:-1] if categories_links else []
             
             if not categories_links:
-                # No pagination - single page
                 logger.info("No pagination found, processing single page")
                 categories_data = _extract_categories_from_page(soup)
                 rows_dict_list.extend(categories_data)
@@ -81,7 +76,6 @@ def _scrape_categories_with_browser(self, vendor_email, vendor_password):
                     }
                 )
             else:
-                # Multiple pages - process each page
                 total_pages = len(categories_links)
                 logger.info(f"Found {total_pages} pages to process")
 
@@ -96,7 +90,6 @@ def _scrape_categories_with_browser(self, vendor_email, vendor_password):
 
                         logger.info(f"Processed page {index}/{total_pages}, found {len(categories_data)} categories")
 
-                        # Update progress
                         progress = int((index / total_pages) * 100)
                         self.update_state(
                             state='PROGRESS',
@@ -127,7 +120,7 @@ def _get_html_content(page, cat_url):
 def _extract_categories_from_page(soup):
     """Extract category data from a single page."""
     categories_data = []
-    rows = soup.select('tr')[1:]  # Skip header
+    rows = soup.select('tr')[1:]
     for row in rows:
         try:
             cat_id = row.select('td.border-t')[0].text.strip()

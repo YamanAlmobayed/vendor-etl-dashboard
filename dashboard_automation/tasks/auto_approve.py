@@ -24,12 +24,14 @@ def auto_approve(self, task, username, password):
                 for btn_index in INDICES
             ]
             
-            # Wait for all threads to complete
             for future in futures:
                 future.result()
         
         logger.info("Auto-approve task completed successfully")
-        return {'result': 'All Items have been Approved'}
+        return {
+            'status': 'completed',
+            'message': 'All Items have been Approved'
+        }
         
     except Exception as e:
         logger.error(f"Auto-approve task failed: {e}")
@@ -44,25 +46,21 @@ def _process_approval_thread(btn_index, login_url, main_url, username, password)
         page = context.new_page()
         
         try:
-            # Login
             page.goto(login_url)
             page.fill("input[name='email']", username)
             page.fill("input[name='password']", password)
             page.click("button[type='submit']")
             page.wait_for_load_state("networkidle")
             
-            # Navigate to item list
             page.goto(main_url)
             page.wait_for_selector("a[href^='https://cp.elitewherego.net/admin/item/edit/']")
             
             edit_buttons = page.query_selector_all("a[href^='https://cp.elitewherego.net/admin/item/edit/']")
             
             while btn_index < len(edit_buttons):
-                # Click edit for the specific index
                 edit_buttons[btn_index].click()
                 page.wait_for_load_state("networkidle")
                 
-                # Update item
                 update_button = page.wait_for_selector("button[type='submit']", timeout=5000)
                 if update_button:
                     update_button.click()

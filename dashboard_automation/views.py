@@ -30,7 +30,6 @@ from celery_singleton.util import generate_lock
 
 logger = logging.getLogger(__name__)
 
-# Redis connection
 redis_client = redis.StrictRedis(
     host='redis',
     port=6379,
@@ -51,10 +50,7 @@ def validate_required_fields(request_data, required_keys):
 def handle_duplicate_task_error(file_paths=None):
     """Handle duplicate task error and cleanup files if provided."""
     if file_paths:
-        if isinstance(file_paths, list):
-            remove_paths(file_paths)
-        else:
-            remove_paths([file_paths])
+        remove_paths(file_paths if isinstance(file_paths, list) else [file_paths])
     return Response(
         {"status": "error", "message": "Task Already Running"}, 
         status=status.HTTP_409_CONFLICT
@@ -63,10 +59,7 @@ def handle_duplicate_task_error(file_paths=None):
 def handle_task_start_error(error, file_paths=None, task_name="processing"):
     """Handle task start error with cleanup and logging."""
     if file_paths:
-        if isinstance(file_paths, list):
-            remove_paths(file_paths)
-        else:
-            remove_paths([file_paths])
+        remove_paths(file_paths if isinstance(file_paths, list) else [file_paths])
     
     logger.error(f"Error starting {task_name} task: {error}")
     return Response(
@@ -77,11 +70,27 @@ def handle_task_start_error(error, file_paths=None, task_name="processing"):
         status=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
 
+def create_task_response(task_id, message="Task started successfully"):
+    """Create standardized task response."""
+    return Response({
+        "task_id": task_id, 
+        "status": "started",
+        "message": message
+    }, status=status.HTTP_202_ACCEPTED)
+
+def validate_excel_file(uploaded_file):
+    """Validate uploaded Excel file."""
+    if not uploaded_file.name.endswith('.xlsx'):
+        return Response(
+            {'error': 'Invalid file type. Only .xlsx files are allowed.'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    return None
+
 @api_view(['GET'])
 def index(request):
     """API index endpoint."""
     return Response({"message": "Welcome to the Dashboard Automation API!"})
-        # Ensure output directory exists
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -93,7 +102,7 @@ def start_auto_approve(request):
 
     try:
         task = auto_approve.delay('auto_approve', request.data["username"], request.data["password"])
-        return Response({"task_id": task.id, "status": "Approving started"})
+        return create_task_response(task.id, "Approving started")
     except DuplicateTaskError:
         return handle_duplicate_task_error()
 
@@ -123,7 +132,7 @@ def start_dashboard_image_downloader(request):
             request.data["vendor_email"], 
             request.data["vendor_password"]
         )
-        return Response({"task_id": task.id, "status": "Downloading started"})
+        return create_task_response(task.id, "Downloading started")
     except Exception as e:
         return handle_task_start_error(e, task_name="dashboard image downloader")
 
@@ -144,7 +153,7 @@ def start_categories_extractor(request):
             request.data["vendor_email"], 
             request.data["vendor_password"]
         )
-        return Response({"task_id": task.id, "status": "Downloading started"})
+        return create_task_response(task.id, "Downloading started")
     except Exception as e:
         return handle_task_start_error(e, task_name="categories extractor")
 
@@ -181,22 +190,15 @@ def start_image_uploader(request):
         )
         
         logger.info(f"Started image uploader task {task.id} for file: {uploaded_file.name}")
-        
-        return Response({
-            "task_id": task.id,
-            "message": "File received. Uploading will begin shortly.",
-        }, status=status.HTTP_202_ACCEPTED)
+        return create_task_response(task.id, "File received. Uploading will begin shortly.")
     
     except DuplicateTaskError:
         return handle_duplicate_task_error(full_path)
     except Exception as e:
         return handle_task_start_error(e, full_path, "image uploader")
 
-@api_view(['POST'])
-@parser_classes([MultiPartParser])
-@permission_classes([IsAuthenticated])
-def start_categories_creator(request):
-    """Start categories creator task with Excel file validation."""
+def _handle_excel_upload_task(request, task_function, task_name):
+    """Common handler for Excel upload tasks."""
     validation_error = validate_required_fields(request.data, ['vendor_email', 'vendor_password'])
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
@@ -205,164 +207,57 @@ def start_categories_creator(request):
         return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
     
     uploaded_file = request.FILES['file']
-    if not uploaded_file.name.endswith('.xlsx'):
-        return Response(
-            {'error': 'Invalid file type. Only .xlsx files are allowed.'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    excel_validation = validate_excel_file(uploaded_file)
+    if excel_validation:
+        return excel_validation
     
     excel_path = None
     try:
         file_path = default_storage.save(uploaded_file.name, uploaded_file)
         excel_path = os.path.join(default_storage.location, file_path)
         
-        task = create_categories.delay(
-            'create_categories',
+        task = task_function.delay(
+            task_name,
             request.data["vendor_email"],
             request.data["vendor_password"],
             excel_path,
         )
         
-        logger.info(f"Started categories creation task {task.id} for file: {uploaded_file.name}")
-        
-        return Response({
-            "task_id": task.id,
-            "message": "Excel received. Uploading will begin shortly.",
-        }, status=status.HTTP_202_ACCEPTED)
+        logger.info(f"Started {task_name} task {task.id} for file: {uploaded_file.name}")
+        return create_task_response(task.id, "Excel received. Processing will begin shortly.")
     
     except DuplicateTaskError:
         return handle_duplicate_task_error(excel_path)
     except Exception as e:
-        return handle_task_start_error(e, excel_path, "categories creator")
+        return handle_task_start_error(e, excel_path, task_name)
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
+def start_categories_creator(request):
+    """Start categories creator task with Excel file validation."""
+    return _handle_excel_upload_task(request, create_categories, "create_categories")
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
 @permission_classes([IsAuthenticated])
 def start_addons_creator(request):
     """Start addons creator task with Excel file validation."""
-    validation_error = validate_required_fields(request.data, ['vendor_email', 'vendor_password'])
-    if validation_error:
-        return Response(validation_error["error"], status=validation_error["status"])
-    
-    if 'file' not in request.FILES:
-        return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    uploaded_file = request.FILES['file']
-    if not uploaded_file.name.endswith('.xlsx'):
-        return Response(
-            {'error': 'Invalid file type. Only .xlsx files are allowed.'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    excel_path = None
-    try:
-        file_path = default_storage.save(uploaded_file.name, uploaded_file)
-        excel_path = os.path.join(default_storage.location, file_path)
-        
-        task = create_addons.delay(
-            'create_addons',
-            request.data["vendor_email"],
-            request.data["vendor_password"],
-            excel_path,
-        )
-        
-        logger.info(f"Started addons creator task {task.id} for file: {uploaded_file.name}")
-        
-        return Response({
-            "task_id": task.id,
-            "message": "Excel received. Uploading will begin shortly.",
-        }, status=status.HTTP_202_ACCEPTED)
-    
-    except DuplicateTaskError:
-        return handle_duplicate_task_error(excel_path)
-    except Exception as e:
-        return handle_task_start_error(e, excel_path, "addons creator")
+    return _handle_excel_upload_task(request, create_addons, "create_addons")
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
 @permission_classes([IsAuthenticated])
 def start_addons_items_linker(request):
     """Start addons items linking task with Excel file validation."""
-    validation_error = validate_required_fields(request.data, ['vendor_email', 'vendor_password'])
-    if validation_error:
-        return Response(validation_error["error"], status=validation_error["status"])
-    
-    if 'file' not in request.FILES:
-        return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    uploaded_file = request.FILES['file']
-    if not uploaded_file.name.endswith('.xlsx'):
-        return Response(
-            {'error': 'Invalid file type. Only .xlsx files are allowed.'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    excel_path = None
-    try:
-        file_path = default_storage.save(uploaded_file.name, uploaded_file)
-        excel_path = os.path.join(default_storage.location, file_path)
-        
-        task = link_items_addons.delay(
-            'link_items_addons',
-            request.data["vendor_email"],
-            request.data["vendor_password"],
-            excel_path,
-        )
-        
-        logger.info(f"Started addons items linking task {task.id} for file: {uploaded_file.name}")
-        
-        return Response({
-            "task_id": task.id,
-            "message": "Excel received. Linking will begin shortly.",
-        }, status=status.HTTP_202_ACCEPTED)
-    
-    except DuplicateTaskError:
-        return handle_duplicate_task_error(excel_path)
-    except Exception as e:
-        return handle_task_start_error(e, excel_path, "addons items linking")
+    return _handle_excel_upload_task(request, link_items_addons, "link_items_addons")
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
 @permission_classes([IsAuthenticated])
 def start_addon_categories_creator(request):
     """Start addon categories creator task with Excel file validation."""
-    validation_error = validate_required_fields(request.data, ['vendor_email', 'vendor_password'])
-    if validation_error:
-        return Response(validation_error["error"], status=validation_error["status"])
-    
-    if 'file' not in request.FILES:
-        return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    uploaded_file = request.FILES['file']
-    if not uploaded_file.name.endswith('.xlsx'):
-        return Response(
-            {'error': 'Invalid file type. Only .xlsx files are allowed.'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    excel_path = None
-    try:
-        file_path = default_storage.save(uploaded_file.name, uploaded_file)
-        excel_path = os.path.join(default_storage.location, file_path)
-        
-        task = create_addon_categories.delay(
-            'create_addon_categories',
-            request.data["vendor_email"],
-            request.data["vendor_password"],
-            excel_path,
-        )
-        
-        logger.info(f"Started addon categories creation task {task.id} for file: {uploaded_file.name}")
-        
-        return Response({
-            "task_id": task.id,
-            "message": "Excel received. Uploading will begin shortly.",
-        }, status=status.HTTP_202_ACCEPTED)
-    
-    except DuplicateTaskError:
-        return handle_duplicate_task_error(excel_path)
-    except Exception as e:
-        return handle_task_start_error(e, excel_path, "addon categories creator")
+    return _handle_excel_upload_task(request, create_addon_categories, "create_addon_categories")
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
@@ -375,7 +270,6 @@ def start_matching_items_with_categories(request):
     file_paths = {}
     
     try:
-        # Validate required files are present
         for field_name in upload_file_fields:
             if field_name not in request.FILES:
                 return Response(
@@ -383,7 +277,6 @@ def start_matching_items_with_categories(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Validate each uploaded file
         for field_name in upload_file_fields:
             file_obj = request.FILES[field_name]
             validation_error = validate_uploaded_file(file_obj, field_name, ['.xlsx'])
@@ -394,7 +287,6 @@ def start_matching_items_with_categories(request):
                 )
             uploaded_files[field_name] = file_obj
         
-        # Save uploaded files temporarily
         for field_name, file_obj in uploaded_files.items():
             try:
                 file_path = save_uploaded_file(file_obj)
@@ -411,17 +303,13 @@ def start_matching_items_with_categories(request):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         
-        # Start the Celery task
         task = match_categories_with_items.delay(
             file_paths['categories_file'],
             file_paths['items_file'],
             'media/items_with_cat_id.xlsx',
         )
         
-        logger.info(
-            f"Started categories matching task {task.id} for user {request.user.id}. "
-            f"Files: {uploaded_files['categories_file'].name}, {uploaded_files['items_file'].name}"
-        )
+        logger.info(f"Started categories matching task {task.id} for user {request.user.id}")
         
         return Response(
             {
@@ -433,10 +321,7 @@ def start_matching_items_with_categories(request):
         )
         
     except Exception as e:
-        logger.error(
-            f"Unexpected error in start_matching_items_with_categories for user {request.user.id}: {e}",
-            exc_info=True
-        )
+        logger.error(f"Unexpected error in start_matching_items_with_categories: {e}", exc_info=True)
         remove_paths(saved_file_paths)
         return Response(
             {
@@ -462,7 +347,6 @@ def task_status_view(request):
         
         logger.debug(f"Main Task ID: {task_id}, State: {main_task_result.state}")
         
-        # Check if task was terminated
         if redis_client.get(f"terminated:{task_id}"):
             response.update({
                 'status': 'terminated',
@@ -471,7 +355,6 @@ def task_status_view(request):
             })
             return Response(response)
         
-        # Handle different task states
         if main_task_result.state == states.FAILURE:
             response.update({
                 'status': 'failed',
@@ -498,7 +381,6 @@ def task_status_view(request):
             try:
                 main_task_info = main_task_result.get()
                 
-                # Get subtask information
                 subtask_ids = []
                 monitor_task_id = None
                 
@@ -506,12 +388,10 @@ def task_status_view(request):
                     subtask_ids = main_task_info.get('subtask_ids', [])
                     monitor_task_id = main_task_info.get('monitor_task_id')
                 
-                # Try Redis if not in main task result
                 if not subtask_ids:
                     subtask_ids = list(redis_client.smembers(f"subtasks:{task_id}"))
                 
                 if not subtask_ids:
-                    # No subtasks, return main task result
                     response.update({
                         'status': 'completed',
                         'message': main_task_info.get('message', 'Task completed successfully'),
@@ -519,7 +399,6 @@ def task_status_view(request):
                     })
                     return Response(response)
                 
-                # Process subtasks and monitor task
                 subtask_statuses = get_subtask_statuses(subtask_ids, redis_client)
                 
                 monitor_status = None
@@ -539,7 +418,6 @@ def task_status_view(request):
                     elif monitor_result.state == states.FAILURE:
                         monitor_status['info'] = str(monitor_result.info)
                 
-                # Determine overall status
                 overall_status = determine_overall_status(subtask_statuses, monitor_status)
                 
                 response.update(overall_status)
@@ -548,7 +426,6 @@ def task_status_view(request):
                 if monitor_status:
                     response['monitor_task'] = monitor_status
                 
-                # Add download link if completed successfully
                 if overall_status['status'] == 'completed' and request.data.get("vendor_name"):
                     response['download_link'] = f"http://10.39.1.71/scrapped_data/{request.data['vendor_name']}.zip"
                 
@@ -564,7 +441,6 @@ def task_status_view(request):
                 return Response(response)
         
         else:
-            # Handle other states (STARTED, RETRY, etc.)
             response.update({
                 'state': main_task_result.state,
                 'status': 'preparing',
@@ -591,7 +467,6 @@ def terminate_task_view(request):
         
         logger.info(f"Starting termination for task {task_id}")
         
-        # Revoke the main task
         try:
             result = AsyncResult(task_id)
             if multithread:
@@ -602,7 +477,6 @@ def terminate_task_view(request):
         except Exception as e:
             logger.error(f"Error revoking task {task_id}: {e}")
         
-        # Remove singleton lock if provided
         try:
             task = request.data.get("task")
             unique_on = request.data.get("unique_on")
@@ -619,7 +493,6 @@ def terminate_task_view(request):
         except Exception as e:
             logger.error(f"Error removing singleton lock: {e}")
         
-        # Schedule cleanup task
         try:
             if not multithread:
                 cleanup_task_files.apply_async(args=[task_id], countdown=5)

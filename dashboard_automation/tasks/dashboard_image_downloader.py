@@ -7,24 +7,9 @@ from playwright.sync_api import sync_playwright
 from utils.image_downloader import download_image, get_hashed_filename
 from utils.sanitizers import replace_slash_with_space
 from utils.excel_handlers import append_to_excel
-from utils.helper_methods import perform_vendor_login, update_task_progress
+from utils.helper_methods import perform_vendor_login
 
 logger = logging.getLogger(__name__)
-
-LOGIN_URL = "https://vendor.elitewherego.com/login"
-MAIN_URL = "https://vendor.elitewherego.com/items"
-
-def get_next_link(page):
-    try:
-        return page.locator("a", has_text="Next »").get_attribute("href")
-    except:
-        return None
-    
-import os
-import shutil
-from utils.image_downloader import download_image, get_hashed_filename
-from utils.sanitizers import replace_slash_with_space
-from utils.excel_handlers import append_to_excel
 
 @shared_task(bind=True, name='dashboard_image_downloader')
 def dashboard_image_downloader(self, vendor_name, vendor_email, vendor_password):
@@ -36,22 +21,19 @@ def dashboard_image_downloader(self, vendor_name, vendor_email, vendor_password)
         
         images = _scrape_vendor_images(self, vendor_email, vendor_password)
         
-        # Setup directories
         scrapped_dir = Path('scrapped_data')
         download_path = scrapped_dir / vendor_name / 'images'
         report_path = scrapped_dir / vendor_name / 'reports'
         download_path.mkdir(parents=True, exist_ok=True)
         report_path.mkdir(parents=True, exist_ok=True)
         
-        # Download images and create reports
         _download_images_and_create_reports(images, download_path, report_path)
         
-        # Create zip file
         return _create_vendor_zip(scrapped_dir, vendor_name)
         
     except Exception as e:
         logger.error(f"Dashboard image downloader task failed: {e}")
-        return {'result': f'An error occurred while downloading the vendor {vendor_name}'}
+        return {'status': 'error', 'message': f'An error occurred while downloading the vendor {vendor_name}'}
 
 def _scrape_vendor_images(self, vendor_email, vendor_password):
     """Scrape images from vendor dashboard."""
@@ -64,7 +46,6 @@ def _scrape_vendor_images(self, vendor_email, vendor_password):
         page = context.new_page()
 
         try:
-            # Login
             perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
             page.goto(MAIN_URL)
             page.wait_for_selector('table.w-full.whitespace-nowrap')
@@ -139,7 +120,8 @@ def _create_vendor_zip(scrapped_dir, vendor_name):
         shutil.rmtree(zip_path)
         
         return {
-            'result': f'{vendor_name} have been downloaded successfully',
+            'status': 'completed',
+            'message': f'{vendor_name} have been downloaded successfully',
             'download_link': f'http://10.39.1.71/{zip_path}.zip'
         }
     except Exception as e:

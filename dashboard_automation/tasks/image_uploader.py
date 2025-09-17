@@ -17,13 +17,10 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from celery import current_app
 from utils.file_cleanup_manager import FileCleanupManager
-from utils.helper_methods import perform_vendor_login, update_task_progress
+from utils.helper_methods import perform_vendor_login
 
 logger = logging.getLogger(__name__)
 
-LOGIN_URL = "https://vendor.elitewherego.com/login"
-MAIN_URL = "https://vendor.elitewherego.com/items"
-        
 @shared_task(bind=True, name="auto_upload", acks_late=True, reject_on_worker_lost=True, 
              task_track_started=True, base=Singleton, raise_on_duplicate=True, unique_on=['vendor_email'])
 def image_uploader(self, vendor_email, vendor_password, folder_path, zip_file_path):
@@ -36,16 +33,13 @@ def image_uploader(self, vendor_email, vendor_password, folder_path, zip_file_pa
     try:
         self.update_state(state='PROGRESS', meta={'message': 'Extracting files...'})
         
-        # Setup and prepare files
         _prepare_upload_environment(zip_file_path, folder_path, task_id)
         
         customized_folder_path = os.path.join(folder_path, "customized")
         required_folders = [f"volume{i}" for i in range(1, 5)]
         
-        # Split images if necessary
         _ensure_volume_structure(self, customized_folder_path, required_folders)
         
-        # Process volumes using threads
         results = _process_volumes_with_threads(
             self, vendor_email, vendor_password, folder_path, 
             customized_folder_path, required_folders, stop_event, task_id
@@ -61,7 +55,7 @@ def image_uploader(self, vendor_email, vendor_password, folder_path, zip_file_pa
     except Exception as e:
         logger.error(f"Image upload task {task_id} failed: {e}")
         cleanup_task_files.apply_async(args=[task_id], countdown=5)
-        return {"message": f"Failed: {str(e)}", "status": "error"}
+        return {"status": "error", "message": f"Failed: {str(e)}"}
 
 def _prepare_upload_environment(zip_file_path, folder_path, task_id):
     """Prepare the upload environment by extracting files and registering for cleanup."""
@@ -84,7 +78,6 @@ def _process_volumes_with_threads(self, vendor_email, vendor_password, folder_pa
     completed = failed = terminated = 0
     
     with ThreadPoolExecutor(max_workers=4, thread_name_prefix="VolumeProcessor") as executor:
-        # Submit all volume processing tasks
         future_to_volume = {}
         for volume in required_folders:
             volume_folder_path = os.path.join(customized_folder_path, volume)
@@ -97,7 +90,6 @@ def _process_volumes_with_threads(self, vendor_email, vendor_password, folder_pa
         
         logger.info(f"Started {len(future_to_volume)} volume processing threads")
         
-        # Monitor thread completion
         completed_futures = 0
         total_futures = len(future_to_volume)
         
@@ -133,7 +125,6 @@ def _process_volumes_with_threads(self, vendor_email, vendor_password, folder_pa
                         results.append({"status": "failed", "volume": volume, "error": str(e)})
                         failed += 1
                     
-                    # Update progress
                     _update_volume_progress(self, completed, failed, terminated, len(required_folders))
                     break
                     
@@ -161,14 +152,12 @@ def _process_volume_thread(vendor_email, vendor_password, folder_path, volume_fo
             page = context.new_page()
             
             try:
-                # Login and setup
                 LOGIN_URL = "https://vendor.elitewherego.com/login"
                 MAIN_URL = "https://vendor.elitewherego.com/items"
                 
                 perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
                 page.goto(MAIN_URL)
                 
-                # Process items
                 processed_items = _process_volume_items(
                     page, excel_path, volume_folder_path, volume, 
                     stop_event, task_id, MAIN_URL
@@ -206,13 +195,11 @@ def _process_volume_items(page, excel_path, volume_folder_path, volume, stop_eve
     for idx, row in df.iterrows():
         check_count += 1
         
-        # Check stop signals periodically
         if check_count % 3 == 0 or check_count == 1:
             if stop_event.is_set() or _is_task_revoked(task_id):
                 logger.warning(f"[Volume {volume}] Stop signal detected at row {idx}. Exiting.")
                 return processed_items
         
-        # Process individual item
         if _process_single_item(page, row, volume_folder_path, volume, main_url):
             processed_items += 1
     
@@ -227,7 +214,6 @@ def _process_single_item(page, row, volume_folder_path, volume, main_url):
         item_price = str(clean_price(row['price']))
         image_file_name = str(row['Image_File_Name'])
         
-        # Find matching image file
         image_base_name = os.path.splitext(image_file_name)[0]
         search_pattern = os.path.join(volume_folder_path, image_base_name + '.*')
         matching_files = glob.glob(search_pattern)
@@ -237,11 +223,9 @@ def _process_single_item(page, row, volume_folder_path, volume, main_url):
         
         image_path = matching_files[0]
         
-        # Update photo count
         photos = images_counter.count_images(volume_folder_path)
         images_counter.update_remaining_photos(volume, photos)
         
-        # Search for item and upload
         if _search_and_upload_item(page, item_name, normalized_name, item_category, item_price, image_path):
             os.remove(image_path)
             logger.info(f"[Volume {volume}] Uploaded & removed {image_file_name}")
@@ -257,18 +241,15 @@ def _process_single_item(page, row, volume_folder_path, volume, main_url):
 def _search_and_upload_item(page, item_name, normalized_name, item_category, item_price, image_path):
     """Search for item and upload image if found."""
     try:
-        # Search for item
         search_box = page.locator("#search")
         search_box.fill(item_name)
         
-        # Wait for search results
         try:
             page.wait_for_function("document.documentElement.classList.contains('nprogress-busy')", timeout=2000)
             page.wait_for_function("!document.documentElement.classList.contains('nprogress-busy')")
         except:
             page.wait_for_timeout(3000)
         
-        # Find matching item in results
         table = page.locator("table.w-full.whitespace-nowrap")
         edit_buttons = table.locator("a[href^='https://vendor.elitewherego.com/items/']").all()
         
@@ -283,7 +264,6 @@ def _search_and_upload_item(page, item_name, normalized_name, item_category, ite
             row_price = table_rows[i].locator("td:nth-child(3)").text_content()
             
             if row_title == normalized_name and row_category == item_category and row_price == item_price:
-                # Found match, upload image
                 edit_link = edit_buttons[i].get_attribute('href')
                 page.goto(edit_link)
                 
@@ -354,7 +334,6 @@ def _finalize_upload_results(volume_results, required_folders, task_id):
     """Finalize and return upload results."""
     results, completed, failed, terminated = volume_results
     
-    # Determine final status
     if terminated == len(required_folders):
         final_status = "terminated"
         status_msg = "All volume processing was terminated"
@@ -365,12 +344,11 @@ def _finalize_upload_results(volume_results, required_folders, task_id):
         final_status = "partial"
         status_msg = f"Completed: {completed}, Failed: {failed}, Terminated: {terminated}"
     
-    # Schedule cleanup
     cleanup_task_files.apply_async(args=[task_id], countdown=5)
     
     return {
-        "message": status_msg,
         "status": final_status,
+        "message": status_msg,
         "completed": completed,
         "failed": failed,
         "terminated": terminated,

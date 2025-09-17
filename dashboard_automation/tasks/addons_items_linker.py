@@ -4,8 +4,7 @@ import time
 from celery import shared_task
 from celery_singleton import Singleton
 import logging
-from utils.file_cleanup_manager import FileCleanupManager
-from utils.file_cleanup_manager import cleanup_task_files
+from utils.file_cleanup_manager import FileCleanupManager, cleanup_task_files
 from utils.sanitizers import normalize_text, sanitize_text, format_number
 from utils.helper_methods import perform_vendor_login, update_task_progress
 
@@ -22,7 +21,6 @@ def link_items_addons(self, task, vendor_email, vendor_password, excel_path):
         
         FileCleanupManager.register_files_for_cleanup(task_id, [excel_path])
         
-        # Extract items data from Excel
         items_data = _extract_items_with_addons(excel_path)
         total_items = len(items_data)
         logger.info(f"Found {total_items} items to process for addon linking")
@@ -34,7 +32,8 @@ def link_items_addons(self, task, vendor_email, vendor_password, excel_path):
         logger.info(f"Task completed. Successfully processed {processed_count}/{total_items} items")
         
         return {
-            'result': f'Items addons linking completed. Processed {processed_count}/{total_items} items successfully',
+            'status': 'completed',
+            'message': f'Items addons linking completed. Processed {processed_count}/{total_items} items successfully',
             'processed': processed_count,
             'total': total_items
         }
@@ -48,7 +47,6 @@ def link_items_addons(self, task, vendor_email, vendor_password, excel_path):
 
 def _extract_items_with_addons(excel_path):
     """Extract items with their associated addons from Excel."""
-    
     try:
         df = pd.read_excel(
             excel_path, 
@@ -74,7 +72,6 @@ def _extract_items_with_addons(excel_path):
 
 def _process_items_addon_linking_with_browser(self, vendor_email, vendor_password, items_data):
     """Process item addon linking using browser automation."""
-    
     LOGIN_URL = "https://vendor.elitewherego.com/login"
     MAIN_URL = "https://vendor.elitewherego.com/items"
     
@@ -84,7 +81,6 @@ def _process_items_addon_linking_with_browser(self, vendor_email, vendor_passwor
         page = context.new_page()
         
         try:
-            # Login
             perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
             page.goto(MAIN_URL)
             
@@ -119,9 +115,6 @@ def _process_items_addon_linking_with_browser(self, vendor_email, vendor_passwor
 
                     page.goto(MAIN_URL)
                     processed_count += 1
-                    
-                    # Update progress
-                    
                     
                     update_task_progress(self, processed_count, total_items, "items")
 
@@ -164,7 +157,7 @@ def _extract_item_links(table):
         return []
 
 def _is_matching_item(item_link, item_name, expected_category):
-    
+    """Check if item link matches expected item."""
     return (
         sanitize_text(normalize_text(item_link['title'])) == sanitize_text(normalize_text(item_name)) and
         sanitize_text(normalize_text(item_link['category'])) == sanitize_text(normalize_text(expected_category))
@@ -172,7 +165,6 @@ def _is_matching_item(item_link, item_name, expected_category):
 
 def _process_addons_for_item(page, item_url, addon_attributes):
     """Process addons for a specific item."""
-    
     try:
         page.goto(item_url)
         page.wait_for_selector('tr.hover\\:bg-gray-100')

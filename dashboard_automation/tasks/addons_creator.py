@@ -1,11 +1,9 @@
 import pandas as pd
-from pathlib import Path
 from playwright.sync_api import sync_playwright
 from celery import shared_task
 from celery_singleton import Singleton
 import logging
-from utils.file_cleanup_manager import FileCleanupManager
-from utils.file_cleanup_manager import cleanup_task_files
+from utils.file_cleanup_manager import FileCleanupManager, cleanup_task_files
 from utils.helper_methods import perform_vendor_login, update_task_progress
 
 logger = logging.getLogger(__name__)
@@ -21,7 +19,6 @@ def create_addons(self, task, vendor_email, vendor_password, excel_path):
         
         FileCleanupManager.register_files_for_cleanup(task_id, [excel_path])
         
-        # Read Excel data
         excel_data = _read_addons_excel(excel_path)
         total_count = len(excel_data)
         logger.info(f"Found {total_count} addons to process")
@@ -33,7 +30,8 @@ def create_addons(self, task, vendor_email, vendor_password, excel_path):
         logger.info(f"Task completed. Successfully processed {processed_count}/{total_count} addons")
         
         return {
-            'result': f'Addon creation completed. Processed {processed_count}/{total_count} addons successfully',
+            'status': 'completed',
+            'message': f'Addon creation completed. Processed {processed_count}/{total_count} addons successfully',
             'processed': processed_count,
             'total': total_count
         }
@@ -69,7 +67,6 @@ def _process_addons_with_browser(self, vendor_email, vendor_password, excel_data
         page = context.new_page()
         
         try:
-            # Login
             perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
             page.goto(MAIN_URL)
             
@@ -78,24 +75,20 @@ def _process_addons_with_browser(self, vendor_email, vendor_password, excel_data
                 try:
                     logger.info(f"Processing addon {index + 1}/{len(excel_data)}: {row['addon_name']}")
                     
-                    # Navigate to create form
                     page.click("a[href='https://vendor.elitewherego.com/addons/create']")
                     page.wait_for_selector('#name', timeout=10000)
                     
-                    # Fill form
                     page.fill("#name", str(row["addon_name"]))
                     page.fill("#price", str(row["addon_price"]))
                     page.select_option("#addon_category_id", str(row["addon_category"]))
                     page.select_option("#status", "Active")
                     
-                    # Submit form
                     page.click("button[type='submit']")
                     page.wait_for_selector('table.w-full.whitespace-nowrap', timeout=10000)
                     
                     processed_count += 1
                     logger.info(f"Addon '{row['addon_name']}' created successfully")
                     
-                    # Update progress
                     update_task_progress(self, processed_count, len(excel_data), "addons")
                     
                 except Exception as e:

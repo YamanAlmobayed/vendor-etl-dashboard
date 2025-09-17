@@ -18,7 +18,6 @@ from playwright_stealth import Stealth
 import random
 from pathlib import Path
 
-# Import your existing modules
 from utils.excel_handlers import append_to_excel, merge_excels
 from utils.url_formatters import deliveroo_url_formatter, talabat_url_formatter, noon_url_formatter
 from utils.file_cleanup_manager import FileCleanupManager, cleanup_task_files
@@ -43,8 +42,7 @@ def detect_parser_from_url(url):
         return None
 
 def get_parser_info(url, menu_type):
-    """Detect platform and return appropriate parser, selector, and formatter based on layout (single/multi)."""
-    
+    """Detect platform and return appropriate parser, selector, and formatter."""
     if "deliveroo" in url:
         return {
             "parser": "deliveroo",
@@ -88,7 +86,6 @@ def get_parser_info(url, menu_type):
             "url_formatter": noon_url_formatter,
             "scroll_type": "slow"
         }
-
     else:
         raise ValueError(f"Unsupported platform: {url}")
 
@@ -99,7 +96,8 @@ def create_vendor_zip(scrapped_dir, vendor_name):
         shutil.make_archive(zip_path, 'zip', zip_path)
         shutil.rmtree(zip_path)
         return {
-            'result': f'{vendor_name} have been downloaded successfully',
+            'status': 'completed',
+            'message': f'{vendor_name} have been downloaded successfully',
             'download_link': f'http://10.39.1.71/{zip_path}.zip'
         }
     except Exception as e:
@@ -151,48 +149,32 @@ def scrape_category(data, report_path, images_path, task_id):
 
 @shared_task(bind=True, name="items_scraper")
 def scrape_menu_items(self, menu_url, vendor_name, menu_type='single', excel_file=None):
-    """
-    Celery task to scrape menu items from various providers.
-    
-    Args:
-        menu_url (str): The URL to scrape items from (required for single mode)
-        vendor_name (str): Name of the vendor for folder creation
-        menu_type (str): 'single' or 'multi' mode
-        excel_file_content (bytes): Excel file content for multi mode (optional)
-        
-    Returns:
-        dict: Task result with download link and status
-    """
+    """Celery task to scrape menu items from various providers."""
     task_id = self.request.id
     
     try:
-        # Create unique directories for this task
         base_dir = Path('scrapped_data')
         vendor_dir = os.path.join(base_dir, vendor_name)
         reports_path = os.path.join(vendor_dir, "reports")
         images_path = os.path.join(vendor_dir, "images")
         
-        # Ensure directories exist
         os.makedirs(reports_path, exist_ok=True)
         os.makedirs(images_path, exist_ok=True)
         
-        FileCleanupManager.register_files_for_cleanup(task_id, [vendor_dir, excel_file])
-        # Auto-detect parser if not already determined
-        detected_parser = detect_parser_from_url(menu_url)
-        if not detected_parser:
-            raise ValueError(f"Unable to determine parser for URL: {menu_url}")
-        
-        self.update_state(
-            state='PROGRESS',
-            meta={
-                'message': f'Starting to scrape {menu_type} menu for {vendor_name}',
-                'vendor_name': vendor_name,
-                'parser': detected_parser
-            }
-        )
-        
         if menu_type == 'single':
-            # Single menu scraping
+            FileCleanupManager.register_files_for_cleanup(task_id, [vendor_dir])
+            detected_parser = detect_parser_from_url(menu_url)
+            if not detected_parser:
+                raise ValueError(f"Unable to determine parser for URL: {menu_url}")
+
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'message': f'Starting to scrape {menu_type} menu for {vendor_name}',
+                    'vendor_name': vendor_name,
+                    'parser': detected_parser
+                }
+            )
             config = get_parser_info(menu_url, menu_type='single')
             
             downloader = ItemsDownloader(
@@ -228,10 +210,23 @@ def scrape_menu_items(self, menu_url, vendor_name, menu_type='single', excel_fil
             if not excel_file:
                 raise ValueError("Excel file content is required for multi mode")
             
-            # Read categories from Excel
+            FileCleanupManager.register_files_for_cleanup(task_id, [vendor_dir, excel_file])
+            
             categories = read_categories_from_excel(excel_file)
             
-            # Calculate optimal thread count
+            detected_parser = detect_parser_from_url(categories[0]['url'])
+            if not detected_parser:
+                raise ValueError(f"Unable to determine parser for URL: {menu_url}")
+
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'message': f'Starting to scrape {menu_type} menu for {vendor_name}',
+                    'vendor_name': vendor_name,
+                    'parser': detected_parser
+                }
+            )
+            
             cpu_cores = os.cpu_count() or 4
             available_gb = psutil.virtual_memory().available / 1e9
             
@@ -255,16 +250,14 @@ def scrape_menu_items(self, menu_url, vendor_name, menu_type='single', excel_fil
             def safe_scrape(row):
                 scrape_category(row, reports_path, images_path, task_id)
             
-            # Process categories with threading
             completed = 0
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = []
                 for row in categories:
                     future = executor.submit(safe_scrape, row)
                     futures.append(future)
-                    time.sleep(2)  # Delay between requests
+                    time.sleep(2)
                 
-                # Wait for completion and update progress
                 for future in futures:
                     try:
                         future.result()
@@ -281,16 +274,11 @@ def scrape_menu_items(self, menu_url, vendor_name, menu_type='single', excel_fil
                         logger.error(f"Error in thread execution: {e}")
                         completed += 1
             
-            # Merge Excel files
             merge_excels(reports_path, os.path.join(reports_path, "report.xlsx"))
-            
-            # Clean up temporary Excel file
-            os.remove(excel_file)
         
         else:
             raise ValueError(f"Invalid menu_type: {menu_type}. Must be 'single' or 'multi'")
         
-        # Create zip file
         self.update_state(
             state='PROGRESS',
             meta={'message': f'Creating zip file for {vendor_name}'}
@@ -298,17 +286,15 @@ def scrape_menu_items(self, menu_url, vendor_name, menu_type='single', excel_fil
         
         zip_result = create_vendor_zip(base_dir, vendor_name)
         
-        # Schedule cleanup (will only run after task completion)
-        cleanup_task_files.apply_async(args=[task_id], countdown=300)  # 5 minutes delay
+        cleanup_task_files.apply_async(args=[task_id], countdown=5)
         
         return {
-            'status': 'SUCCESS',
+            'status': 'completed',
             'download_link': zip_result['download_link'],
-            'message': zip_result['result']
+            'message': zip_result['message']
         }
         
     except Exception as e:
-        # Update task state on failure
         self.update_state(
             state='FAILURE',
             meta={
@@ -317,9 +303,9 @@ def scrape_menu_items(self, menu_url, vendor_name, menu_type='single', excel_fil
                 'vendor_name': vendor_name
             }
         )
-        raise e
+        raise
     
-    
+
 class MenuItem:
     def __init__(self, title, price, description, image_url, category, image_file_name):
         self.title = title
@@ -339,7 +325,6 @@ class MenuItem:
             "Image_Status": "" if self.image_url else "No Image",
             "Image_File_Name": self.image_file_name
         }
-
 
 class DeliverooParser:
     def __init__(self, ctx):
@@ -400,7 +385,6 @@ class DeliverooParser:
             except Exception as e:
                 logging.warning(f"Deliveroo parse error: {e}")
 
-
 class TalabatParser:
     def __init__(self, ctx):
         self.ctx = ctx
@@ -435,15 +419,14 @@ class TalabatParser:
                 price = item.select_one("span.currency")
                 price = price.text.strip() if price else ""
                 desc_tag = item.select_one("div.f-12.description")
-                if(desc_tag):
-                    description = desc_tag.text.strip() if desc_tag.text.strip() != "" else title                
+                description = desc_tag.text.strip() if desc_tag and desc_tag.text.strip() else title
+                
                 image = item.select_one("img[src^='https://images.deliveryhero.io/image/']")
                 image_url = self.ctx.url_formatter(image["src"]) if image else ""
                 image_file_name = image_downloader.get_hashed_filename(title, image_url, self.ctx.category) if image_url else ""
                 self.ctx.add_menu_item(MenuItem(title, price, description, image_url, self.ctx.category, image_file_name))
             except Exception as e:
                 logging.warning(f"Talabat parse error: {e}")
-
 
 class InstashopParser:
     def __init__(self, ctx):
@@ -465,8 +448,7 @@ class InstashopParser:
                 self.ctx.add_menu_item(MenuItem(title, price, description, image_url, self.ctx.category, image_file_name))
             except Exception as e:
                 logging.warning(f"Instashop parse error: {e}")
-                
-                
+                             
 class NoonParser:
     def __init__(self, ctx):
         self.ctx = ctx
@@ -477,8 +459,7 @@ class NoonParser:
             sub_category = category_dict.get("sub_category", None)
             self.parse(soup, sub_category) 
 
-
-    def parse(self, soup, sub_category = None):
+    def parse(self, soup, sub_category=None):
         sub_category = sub_category if sub_category else self.ctx.category
         items = soup.select(self.ctx.items_selector["selector"])
         for item in items:
@@ -486,8 +467,8 @@ class NoonParser:
                 title_tag = item.select_one("div.css-146c3p1.r-8akbws.r-krxsd3.r-dnmrzs.r-1qsk4np.r-1udbk01.r-a023e6.r-1kfrs79.r-1xemd6l.r-14yzgew.r-2yi16")
                 title = sanitizer.sanitize_text(title_tag.text.strip()) if title_tag else ""
                 desc_tag = item.select_one("div.css-146c3p1.r-dnmrzs.r-1udh08x.r-1udbk01.r-3s2u2q.r-1iln25a.r-1k9kpms.r-n6v787.r-majxgm.r-1xemd6l.r-1cwl3u0.r-knv0ih")
-                if(desc_tag):
-                    description = desc_tag.text.strip() if desc_tag.text.strip() != "" else title
+                description = desc_tag.text.strip() if desc_tag and desc_tag.text.strip() else title
+                
                 price_tag = item.select_one("span.css-1jxf684.r-1k9kpms.r-a023e6.r-majxgm.r-1rsjblm.r-1xemd6l.r-14yzgew.r-142tt33") or item.select_one("span.css-1jxf684.r-1792100.r-a023e6.r-vw2c0b.r-1rsjblm.r-1xemd6l.r-14yzgew")
                 price = price_tag.text.strip() if price_tag else ""
                 image_div = item.select_one("div.css-g5y9jx.r-1niwhzg.r-vvn4in.r-u6sd8q.r-1p0dtai.r-1pi2tsx.r-1d2f490.r-u8s1d.r-zchlnj.r-ipm5af.r-13qz1uu.r-1wyyakw.r-x3cy2q")
@@ -570,12 +551,10 @@ class ItemsDownloader:
             }
         """)
 
-
     def _handle_noon_page(self, page):
         """Handle Noon-specific page interactions and return html_snapshots."""
         html_snapshots = [page.content()]
         try:
-            # Accept cookies if present
             try:
                 page.wait_for_selector("button:has-text('Accept All')", timeout=5000)
                 cookie_button = page.query_selector("button:has-text('Accept All')")
@@ -635,7 +614,6 @@ class ItemsDownloader:
 
     def start(self):
         with Stealth().use_sync(sync_playwright()) as playwright:
-            user_data_dir = "/home/yaman/scripts/dashboard_upload/playwright_profile"
             USER_AGENTS = [
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
@@ -643,18 +621,8 @@ class ItemsDownloader:
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
             ]
             user_agent = random.choice(USER_AGENTS)
-            browser = playwright.chromium.launch(headless=self.is_headless, args=["--no-sandbox", "--start-maximized"],)
-            context = browser.new_context(
-                no_viewport=True,
-                user_agent=user_agent,
-            )
-            #browser = playwright.chromium.launch_persistent_context(
-            #user_data_dir=user_data_dir,
-            #headless=False,
-            #no_viewport=True,
-            #args=["--no-sandbox", "--start-maximized"],
-            #user_agent=user_agent,
-            #)
+            browser = playwright.chromium.launch(headless=self.is_headless, args=["--no-sandbox", "--start-maximized"])
+            context = browser.new_context(no_viewport=True, user_agent=user_agent)
             page = context.new_page()
             page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
@@ -663,16 +631,6 @@ class ItemsDownloader:
                 try:
                     print(f"[Attempt {attempt}] Trying to load: {self.menu_url}")
                     page.goto(self.menu_url, wait_until="load", timeout=60000)
-                    ############
-                    #instashop
-                    #for i in range(3):
-                    #    if(page.wait_for_selector("div[infinitescroll='infiniteScroll']", timeout=10000)):
-                    #        break
-                    #    else:
-                    #        print("reloading page due to missing selector")
-                    #        page.reload()
-                    #        continue
-                    ###################
                     break
                 except PlaywrightTimeoutError as e:
                     print(f"[Attempt {attempt}] Timeout loading {self.menu_url}: {e}")
@@ -693,7 +651,7 @@ class ItemsDownloader:
                 self.slow_scroll_down(page)
             else:
                 self.fast_scroll_down(page)
-            # Noon-specific logic
+
             if self.parser_name == "noon":
                 html_snapshots = self._handle_noon_page(page)
             else:
@@ -710,8 +668,9 @@ class ItemsDownloader:
             if not parser:
                 logging.error("No valid parser provided.")
                 return
+
             if hasattr(parser, 'parse_multiple_htmls') and len(html_snapshots) > 1:
-                if type(html_snapshots[1]) == dict:
+                if isinstance(html_snapshots[1], dict):
                     parser.parse_multiple_htmls(html_snapshots)
                 else:
                     for html in html_snapshots:
