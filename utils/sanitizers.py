@@ -41,6 +41,9 @@ def extract_items_with_addons(file_path):
 def replace_slash_with_space(text):
     return text.replace('/', ' ')
 
+def replace_space_with_underscore(text):
+    return text.replace(' ', '_')
+
 def clean_price(value):
     if isinstance(value, float) and value.is_integer():
         return str(int(value))

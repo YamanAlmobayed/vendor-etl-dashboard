@@ -27,6 +27,7 @@ from celery.result import AsyncResult
 from celery import states
 from celery_singleton.exceptions import DuplicateTaskError
 from celery_singleton.util import generate_lock
+from utils.sanitizers import replace_space_with_underscore
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,8 @@ def start_dashboard_image_downloader(request):
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
 
+    request.data["vendor_name"] = replace_space_with_underscore(request.data["vendor_name"])
+    
     scrapped_dir = Path('scrapped_data')
     zip_file_path = scrapped_dir / f"{request.data['vendor_name']}.zip"
     
@@ -146,6 +149,8 @@ def start_categories_extractor(request):
     )
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
+    
+    request.data["vendor_name"] = replace_space_with_underscore(request.data["vendor_name"])
     
     try:
         task = scrape_categories.delay(

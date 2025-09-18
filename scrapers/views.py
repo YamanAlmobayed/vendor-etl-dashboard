@@ -16,6 +16,7 @@ from django.core.files.storage import default_storage
 import os
 from .tasks.items_downloader import scrape_menu_items
 from pathlib import Path
+from utils.sanitizers import replace_space_with_underscore
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def start_categories_scraper(request):
     try:
         task = scrape_menu_categories.delay(
             request.data["vendor_url"], 
-            request.data["vendor_name"]
+            replace_space_with_underscore(request.data["vendor_name"])
         )
         return create_task_response(task.id, "Categories scraping started")
     except Exception as e:
@@ -88,6 +89,8 @@ def start_items_downloader(request):
     )
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
+
+    request.data["vendor_name"] = replace_space_with_underscore(request.data["vendor_name"])
 
     scrapped_dir = Path('scrapped_data')
     zip_file_path = scrapped_dir / f"{request.data['vendor_name']}.zip"

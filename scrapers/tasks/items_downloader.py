@@ -436,7 +436,7 @@ class InstashopParser:
         items = soup.select(self.ctx.items_selector["selector"])
         for item in items:
             try:
-                title = sanitizer.sanitize_text(item.select_one("div.product-title").text.strip())
+                title = sanitizer.sanitize_text(item.select_one("div.product-title").text.strip()) or 'test'
                 description = item.select_one("div.product-packaging-string").text.strip()
                 if description == "":
                     description = title
@@ -518,7 +518,6 @@ class ItemsDownloader:
     def fast_scroll_down(self, page, max_retries=5, wait_time=1.5):
         last_height = page.evaluate("() => document.body.scrollHeight")
         retries = 0
-
         while retries < max_retries:
             page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
             time.sleep(wait_time)
@@ -650,6 +649,7 @@ class ItemsDownloader:
             if self.scroll_type == 'slow':
                 self.slow_scroll_down(page)
             else:
+                page.wait_for_selector("div.product-title")
                 self.fast_scroll_down(page)
 
             if self.parser_name == "noon":
