@@ -1,5 +1,6 @@
 #my files and folders 
 /scrapped_data/
+/customized_images/
 /.VSCodeCounter/
 
 # Created by https://www.toptal.com/developers/gitignore/api/django

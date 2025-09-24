@@ -73,7 +73,7 @@ def get_parser_info(url, menu_type):
                 'multi': {'selector': "div.product.ng-star-inserted"}
             }[menu_type],
             "url_formatter": None,
-            "scroll_type": "fast"
+            "scroll_type": "enhanced"
         }
     
     elif "noon" in url:
@@ -414,16 +414,21 @@ class TalabatParser:
 
     def _parse_items(self, items):
         for item in items:
+            print(item)
+            time.sleep(1)   
             try:
                 title = sanitizer.sanitize_text(item.select_one("div.f-15").text.strip())
+                print(title)
                 price = item.select_one("span.currency")
                 price = price.text.strip() if price else ""
                 desc_tag = item.select_one("div.f-12.description")
                 description = desc_tag.text.strip() if desc_tag and desc_tag.text.strip() else title
-                
                 image = item.select_one("img[src^='https://images.deliveryhero.io/image/']")
+                print(image)
                 image_url = self.ctx.url_formatter(image["src"]) if image else ""
+                print(image_url)
                 image_file_name = image_downloader.get_hashed_filename(title, image_url, self.ctx.category) if image_url else ""
+                print(image_file_name)
                 self.ctx.add_menu_item(MenuItem(title, price, description, image_url, self.ctx.category, image_file_name))
             except Exception as e:
                 logging.warning(f"Talabat parse error: {e}")
@@ -478,6 +483,13 @@ class NoonParser:
             except Exception as e:
                 logging.warning(f"Noon parse error: {e}")
 
+import time
+import logging
+import random
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright_stealth import Stealth
+
 class ItemsDownloader:
     def __init__(self, **kwargs):
         self.menu_url = kwargs.get("menu_url")
@@ -492,7 +504,7 @@ class ItemsDownloader:
         self.scroll_type = kwargs.get("scroll_type")
         self.menu = []
 
-    def add_menu_item(self, item: MenuItem):
+    def add_menu_item(self, item):
         if not self._item_exists(item):
             self.menu.append(item.to_dict())
 
@@ -515,12 +527,133 @@ class ItemsDownloader:
         parser_cls = parser_map.get(self.parser_name)
         return parser_cls(self) if parser_cls else None
 
-    def fast_scroll_down(self, page, max_retries=5, wait_time=1.5):
+    def wait_for_images_to_load(self, page, timeout=30000):
+        """Wait for all images to finish loading on the current viewport"""
+        try:
+            # Wait for images to load using JavaScript
+            page.wait_for_function("""
+                () => {
+                    const images = Array.from(document.querySelectorAll('img'));
+                    return images.every(img => img.complete && img.naturalHeight !== 0);
+                }
+            """, timeout=timeout)
+        except Exception as e:
+            print(f"⚠️ Some images may not have loaded: {e}")
+
+    def scroll_with_image_loading(self, page, scroll_pause_time=3):
+        """Enhanced scrolling that waits for images to load at each step"""
+        print("🔄 Starting enhanced scroll with image loading...")
+        
+        last_height = page.evaluate("() => document.body.scrollHeight")
+        scroll_position = 0
+        viewport_height = page.evaluate("() => window.innerHeight")
+        scroll_step = viewport_height // 2  # Scroll half viewport at a time
+        
+        while scroll_position < last_height:
+            # Scroll by small increments
+            page.evaluate(f"() => window.scrollTo(0, {scroll_position})")
+            
+            # Wait for images to load in current viewport
+            self.wait_for_images_to_load(page, timeout=5000)
+            
+            # Additional wait for lazy loading to trigger
+            time.sleep(scroll_pause_time)
+            
+            # Check if new content loaded (dynamic loading)
+            new_height = page.evaluate("() => document.body.scrollHeight")
+            if new_height > last_height:
+                last_height = new_height
+            
+            scroll_position += scroll_step
+            
+        # Final scroll to bottom and wait
+        page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+        self.wait_for_images_to_load(page, timeout=10000)
+        time.sleep(2)
+        print("✅ Enhanced scrolling completed")
+
+    def intelligent_scroll(self, page):
+        """Smart scrolling that adapts based on content loading"""
+        print("🧠 Starting intelligent scroll...")
+        
+        # First, scroll slowly to trigger all lazy loading
+        current_height = 0
+        step = 200  # Small scroll steps
+        last_content_height = page.evaluate("() => document.body.scrollHeight")
+        
+        while current_height < last_content_height:
+            # Small scroll step
+            page.evaluate(f"() => window.scrollBy(0, {step})")
+            current_height += step
+            
+            # Wait a bit for lazy loading to trigger
+            time.sleep(0.5)
+            
+            # Every few scrolls, wait longer for images
+            if current_height % 1000 == 0:
+                time.sleep(2)
+                self.wait_for_images_to_load(page, timeout=3000)
+                
+                # Check if page height increased (more content loaded)
+                new_height = page.evaluate("() => document.body.scrollHeight")
+                if new_height > last_content_height:
+                    last_content_height = new_height
+        
+        # Final wait for all images
+        print("🖼️ Final wait for all images to load...")
+        self.wait_for_images_to_load(page, timeout=15000)
+        time.sleep(3)
+        print("✅ Intelligent scrolling completed")
+
+    def force_load_all_images(self, page):
+        """Force load all lazy-loaded images by bringing them into viewport"""
+        try:
+            # Get all image elements
+            image_count = page.evaluate("""
+                () => {
+                    const images = document.querySelectorAll('img[data-src], img[loading="lazy"], img');
+                    let loadedCount = 0;
+                    
+                    images.forEach((img, index) => {
+                        // Scroll image into view to trigger loading
+                        img.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        
+                        // If it has data-src (lazy loading), force load
+                        if (img.dataset.src && !img.src.includes(img.dataset.src)) {
+                            img.src = img.dataset.src;
+                        }
+                        
+                        // Wait a bit between images
+                        setTimeout(() => {
+                            if (img.complete) loadedCount++;
+                        }, 100 * index);
+                    });
+                    
+                    return images.length;
+                }
+            """)
+            
+            print(f"🖼️ Attempting to load {image_count} images...")
+            time.sleep(5)  # Wait for images to load
+            
+        except Exception as e:
+            print(f"⚠️ Error in force_load_all_images: {e}")
+
+    def fast_scroll_down(self, page, max_retries=5, wait_time=2.5):
+        """Improved fast scroll with better image loading support"""
+        print("⚡ Starting improved fast scroll...")
         last_height = page.evaluate("() => document.body.scrollHeight")
         retries = 0
+        
         while retries < max_retries:
             page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+            
+            # Increased wait time for images to load
             time.sleep(wait_time)
+            
+            # Wait for images in current viewport
+            self.wait_for_images_to_load(page, timeout=5000)
+            
             new_height = page.evaluate("() => document.body.scrollHeight")
 
             if new_height == last_height:
@@ -529,14 +662,21 @@ class ItemsDownloader:
                 retries = 0
 
             last_height = new_height
+        
+        # Force load any remaining images
+        self.force_load_all_images(page)
+        print("✅ Improved fast scroll completed")
 
     def slow_scroll_down(self, page):
+        """Enhanced slow scroll with proper image loading"""
+        print("🐌 Starting enhanced slow scroll...")
+        
         page.evaluate("""
             async () => {
                 await new Promise(resolve => {
                     let totalHeight = 0;
-                    const distance = 100;
-                    const delay = 50;
+                    const distance = 50;  // Smaller distance for better image loading
+                    const delay = 150;    // Longer delay
                     const timer = setInterval(() => {
                         const scrollHeight = document.body.scrollHeight;
                         window.scrollBy(0, distance);
@@ -549,11 +689,17 @@ class ItemsDownloader:
                 });
             }
         """)
+        
+        # Additional wait and force image loading
+        time.sleep(3)
+        self.force_load_all_images(page)
+        print("✅ Enhanced slow scroll completed")
 
     def _handle_noon_page(self, page):
-        """Handle Noon-specific page interactions and return html_snapshots."""
+        """Handle Noon-specific page interactions with improved image loading"""
         html_snapshots = [page.content()]
         try:
+            # Cookie handling
             try:
                 page.wait_for_selector("button:has-text('Accept All')", timeout=5000)
                 cookie_button = page.query_selector("button:has-text('Accept All')")
@@ -561,8 +707,6 @@ class ItemsDownloader:
                     cookie_button.click()
                     print("✅ Accepted cookies.")
                     page.wait_for_timeout(2000)
-                else:
-                    print("⚠️ No cookie button found.")
             except Exception as e:
                 print(f"⚠️ Error accepting cookies: {e}")
 
@@ -577,38 +721,44 @@ class ItemsDownloader:
                         btn.scroll_into_view_if_needed()
                         btn.click()
                         page.wait_for_timeout(3000)
+                        
+                        # Enhanced scrolling for Noon
+                        self.scroll_with_image_loading(page)
+                        
                         html_snapshots.append({"html": page.content(), "sub_category": sub_category})
+                        
+                        # Pagination handling with image loading
                         next_button = page.query_selector('div.Pagination_paginationContainer__Kt4hm li.next a[role="button"]')
                         while next_button:
                             class_attr = next_button.get_attribute("aria-disabled")
                             if "true" in class_attr:
-                                next_button = None
                                 break
                             next_button.click()
-                            next_button = None
                             page.wait_for_timeout(3000)
+                            self.scroll_with_image_loading(page)
                             html_snapshots.append({"html": page.content(), "sub_category": sub_category})
                             next_button = page.query_selector('div.Pagination_paginationContainer__Kt4hm li.next a[role="button"]')
                     except Exception as e:
                         logging.warning(f"Failed clicking button #{i}: {e}")
             else:
+                # Handle pagination without categories
                 try:
                     next_button = page.query_selector('div.Pagination_paginationContainer__Kt4hm li.next a[role="button"]')
                     while next_button:
                         class_attr = next_button.get_attribute("aria-disabled")
                         if "true" in class_attr:
-                            next_button = None
                             break
                         next_button.click()
-                        next_button = None
                         page.wait_for_timeout(3000)
-                        self.slow_scroll_down(page)
+                        self.scroll_with_image_loading(page)
                         html_snapshots.append(page.content())
                         next_button = page.query_selector('div.Pagination_paginationContainer__Kt4hm li.next a[role="button"]')
                 except Exception as e:
                     logging.warning(f"Failed clicking Next button: {e}")
+                    
         except Exception as e:
             logging.warning(f"Error while processing Noon page: {e}")
+            
         return html_snapshots
 
     def start(self):
@@ -620,16 +770,43 @@ class ItemsDownloader:
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
             ]
             user_agent = random.choice(USER_AGENTS)
-            browser = playwright.chromium.launch(headless=self.is_headless, args=["--no-sandbox", "--start-maximized"])
-            context = browser.new_context(no_viewport=True, user_agent=user_agent)
+            
+            # Enhanced browser launch options for better image loading
+            launch_options = {
+                "headless": self.is_headless,
+                "args": [
+                    "--no-sandbox", 
+                    "--start-maximized",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-dev-shm-usage",
+                    "--disable-extensions",
+                    "--no-first-run",
+                    "--disable-default-apps"
+                ]
+            }
+            
+            browser = playwright.chromium.launch(**launch_options)
+            context = browser.new_context(
+                no_viewport=True, 
+                user_agent=user_agent,
+                # Enable image loading
+                java_script_enabled=True,
+                # Set reasonable timeouts
+            )
             page = context.new_page()
-            page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
+            # Enhanced stealth setup
+            page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            """)
 
             retries = 5
             for attempt in range(1, retries + 1):
                 try:
-                    print(f"[Attempt {attempt}] Trying to load: {self.menu_url}")
-                    page.goto(self.menu_url, wait_until="load", timeout=60000)
+                    print(f"[Attempt {attempt}] Loading: {self.menu_url}")
+                    page.goto(self.menu_url, wait_until="networkidle", timeout=60000)
                     break
                 except PlaywrightTimeoutError as e:
                     print(f"[Attempt {attempt}] Timeout loading {self.menu_url}: {e}")
@@ -644,14 +821,25 @@ class ItemsDownloader:
                     browser.close()
                     return
 
-            page.wait_for_timeout(5000)
+            # Extended wait for initial page load
+            page.wait_for_timeout(8000)
 
+            # Choose scrolling strategy based on scroll_type
             if self.scroll_type == 'slow':
                 self.slow_scroll_down(page)
+            elif self.scroll_type == 'intelligent':
+                self.intelligent_scroll(page)
+            elif self.scroll_type == 'enhanced':
+                self.scroll_with_image_loading(page)
             else:
-                page.wait_for_selector("div.product-title")
+                # Wait for key elements before scrolling
+                try:
+                    page.wait_for_selector("div.product-title", timeout=10000)
+                except:
+                    print("⚠️ Key elements not found, proceeding anyway...")
                 self.fast_scroll_down(page)
 
+            # Handle different parser types
             if self.parser_name == "noon":
                 html_snapshots = self._handle_noon_page(page)
             else:
@@ -664,6 +852,7 @@ class ItemsDownloader:
 
             browser.close()
 
+            # Parse the content
             parser = self._get_parser()
             if not parser:
                 logging.error("No valid parser provided.")
@@ -680,9 +869,16 @@ class ItemsDownloader:
                 soup = BeautifulSoup(html_snapshots[0], "html.parser")
                 parser.parse(soup)
 
+            # Download images with error handling
             for item in self.menu:
                 try:
-                    if item["image"]:
-                        image_downloader.download_image(item["Image_File_Name"], item["image"], self.download_path)
+                    if item.get("image"):
+                        image_downloader.download_image(
+                            item["Image_File_Name"], 
+                            item["image"], 
+                            self.download_path
+                        )
                 except Exception as e:
-                    logging.warning(f"Image download error for {item['title']}: {e}")
+                    logging.warning(f"Image download error for {item.get('title', 'unknown')}: {e}")
+
+            print(f"✅ Scraping completed. Found {len(self.menu)} items.")
