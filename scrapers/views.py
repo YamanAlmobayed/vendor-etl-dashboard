@@ -90,12 +90,12 @@ def start_items_downloader(request):
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
 
-    request.data["vendor_name"] = replace_space_with_underscore(request.data["vendor_name"])
+    sanitized_vendor_name = replace_space_with_underscore(request.data["vendor_name"])
 
     scrapped_dir = Path('scrapped_data')
-    zip_file_path = scrapped_dir / f"{request.data['vendor_name']}.zip"
+    zip_file_path = scrapped_dir / f"{sanitized_vendor_name}.zip"
     
-    if check_vendor_zip(request.data["vendor_name"]):
+    if check_vendor_zip(sanitized_vendor_name):
         return Response({
             "message": "Vendor data already exists.",
             "download_link": f"http://10.39.1.71/{zip_file_path}",
@@ -118,7 +118,7 @@ def start_items_downloader(request):
 
             task = scrape_menu_items.delay(
                 None, 
-                request.data["vendor_name"], 
+                sanitized_vendor_name, 
                 "multi",
                 full_path
             )
@@ -133,7 +133,7 @@ def start_items_downloader(request):
 
             task = scrape_menu_items.delay(
                 vendor_url, 
-                request.data["vendor_name"], 
+                sanitized_vendor_name, 
                 "single",
             )
             return create_task_response(task.id, "Single-menu items scraping started")

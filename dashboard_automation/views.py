@@ -118,12 +118,12 @@ def start_dashboard_image_downloader(request):
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
 
-    request.data["vendor_name"] = replace_space_with_underscore(request.data["vendor_name"])
+    sanitized_vendor_name = replace_space_with_underscore(request.data["vendor_name"])
     
     scrapped_dir = Path('scrapped_data')
-    zip_file_path = scrapped_dir / f"{request.data['vendor_name']}.zip"
+    zip_file_path = scrapped_dir / f"{sanitized_vendor_name}.zip"
     
-    if check_vendor_zip(request.data["vendor_name"]):
+    if check_vendor_zip(sanitized_vendor_name):
         return Response({
             "message": "Vendor data already exists.",
             "download_link": f"http://10.39.1.71/{zip_file_path}",
@@ -131,7 +131,7 @@ def start_dashboard_image_downloader(request):
     
     try:
         task = dashboard_image_downloader.delay(
-            request.data["vendor_name"], 
+            sanitized_vendor_name, 
             request.data["vendor_email"], 
             request.data["vendor_password"]
         )
@@ -150,11 +150,11 @@ def start_categories_extractor(request):
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
     
-    request.data["vendor_name"] = replace_space_with_underscore(request.data["vendor_name"])
+    sanitized_vendor_name = replace_space_with_underscore(request.data["vendor_name"])
     
     try:
         task = scrape_categories.delay(
-            request.data["vendor_name"], 
+            sanitized_vendor_name, 
             request.data["vendor_email"], 
             request.data["vendor_password"]
         )
@@ -320,7 +320,7 @@ def start_matching_items_with_categories(request):
             {
                 'task_id': task.id,
                 'message': 'Excel files received. Category matching started.',
-                'status': 'processing'
+                'status': 'started'
             }, 
             status=status.HTTP_202_ACCEPTED
         )
@@ -340,12 +340,13 @@ def start_matching_items_with_categories(request):
 @permission_classes([IsAuthenticated])
 def task_status_view(request):
     """Get task status including subtasks and monitor tasks."""
-    validation_error = validate_required_fields(request.data, ['task_id'])
+    
+    validation_error = validate_required_fields(request.GET, ['task_id'])
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
     
     try:
-        task_id = request.data.get("task_id")
+        task_id = request.GET.get("task_id")
         main_task_result = AsyncResult(task_id)
         
         response = {'task_id': task_id}

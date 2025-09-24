@@ -28,3 +28,6 @@ requests
 beautifulsoup4
 psutil
 playwright-stealth
+django-cors-headers
+pillow
+

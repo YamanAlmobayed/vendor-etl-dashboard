@@ -41,6 +41,8 @@ CSRF_COOKIE_SECURE = bool(os.getenv("CSRF_COOKIE_SECURE"))
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 # settings.py
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -66,6 +68,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'corsheaders',
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
@@ -75,6 +78,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.middleware.common.CommonMiddleware',

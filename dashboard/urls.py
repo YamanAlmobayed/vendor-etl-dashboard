@@ -22,4 +22,5 @@ urlpatterns = [
     path('', include('dashboard_automation.urls')), 
     path('accounts/', include('users.urls')), 
     path('scrapers/', include('scrapers.urls')), 
+    path('image_customization/', include('image_customization.urls')), 
 ]

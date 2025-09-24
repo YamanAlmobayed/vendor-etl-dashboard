@@ -1,7 +1,7 @@
 from celery import shared_task
 import os
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import pandas as pd
 import glob
 from utils import images_counter
@@ -135,11 +135,13 @@ def _process_volumes_with_threads(self, vendor_email, vendor_password, folder_pa
 
 def _process_volume_thread(vendor_email, vendor_password, folder_path, volume_folder_path, 
                           volume, stop_event, task_id):
-    """Process a single volume in a thread."""
+    """Process a single volume in a thread - MIMICKING WORKING VERSION LOGIC."""
     thread_id = threading.current_thread().ident
     logger.info(f"[Thread {thread_id} | Volume {volume}] Started processing")
     
     excel_path = os.path.join(folder_path, "reports", "report.xlsx")
+    LOGIN_URL = "https://vendor.elitewherego.com/login"
+    MAIN_URL = "https://vendor.elitewherego.com/items"
     
     try:
         if stop_event.is_set():
@@ -152,22 +154,125 @@ def _process_volume_thread(vendor_email, vendor_password, folder_path, volume_fo
             page = context.new_page()
             
             try:
-                LOGIN_URL = "https://vendor.elitewherego.com/login"
-                MAIN_URL = "https://vendor.elitewherego.com/items"
-                
-                perform_vendor_login(page, LOGIN_URL, vendor_email, vendor_password)
+                # Login (same as working version)
+                page.goto(LOGIN_URL)
+                page.locator("#email").fill(vendor_email)
+                page.locator("input[type='password']").fill(vendor_password)
+                page.locator("button[type='submit']").click()
+                page.wait_for_url('https://vendor.elitewherego.com/')
                 page.goto(MAIN_URL)
+
+                # Read Excel ONCE (same as working version)
+                if not os.path.exists(excel_path):
+                    raise FileNotFoundError(f"Excel file not found at {excel_path}")
                 
-                processed_items = _process_volume_items(
-                    page, excel_path, volume_folder_path, volume, 
-                    stop_event, task_id, MAIN_URL
-                )
-                
+                df = pd.read_excel(excel_path)
+                processed_items = 0
+                check_count = 0
+
+                # Process items exactly like working version
+                for _, row in df.iterrows():
+                    check_count += 1
+                    
+                    # Periodic stop check (keep for server version)
+                    if check_count % 5 == 0:  # Less frequent checks
+                        if stop_event.is_set() or _is_task_revoked(task_id):
+                            logger.warning(f"[Volume {volume}] Stop signal detected. Exiting.")
+                            break
+                    
+                    # Extract item data (same as working version)
+                    item_name = str(row['title'])
+                    normalized_name = normalize_text(item_name)
+                    item_category = normalize_text(str(row['CategoryName']))
+                    item_price = str(clean_price(row['price']))
+                    image_file_name = str(row['Image_File_Name'])
+                    image_base_name = os.path.splitext(image_file_name)[0]
+                    search_pattern = os.path.join(volume_folder_path, image_base_name + '.*')
+
+                    matching_files = glob.glob(search_pattern)
+                    if not matching_files:
+                        logger.info(f"[{volume}] Image not found: {image_file_name}")
+                        continue
+                    
+                    image_path = matching_files[0]
+
+                    try:
+                        # Update image counter (same as working version)
+                        photos = images_counter.count_images(volume_folder_path)
+                        images_counter.update_remaining_photos(volume, photos)
+                        logger.info(f"[{volume}] Images remaining: {photos}")
+
+                        # Search item (EXACTLY same as working version)
+                        for i in range(3):
+                            try:
+                                search_box = page.locator("#search")
+                                search_box.fill(item_name)
+                                break
+                            except:
+                                page.reload()
+                                continue
+
+                        # Wait pattern (EXACTLY same as working version)
+                        try:
+                            page.wait_for_function("document.documentElement.classList.contains('nprogress-busy')", timeout=2000)
+                            page.wait_for_function("!document.documentElement.classList.contains('nprogress-busy')")
+                        except:
+                            page.wait_for_timeout(3000)
+
+                        # Table processing (EXACTLY same as working version)
+                        table = page.locator("table.w-full.whitespace-nowrap")
+                        edit_buttons = table.locator("a[href^='https://vendor.elitewherego.com/items/']").all()
+                        if not edit_buttons:
+                            continue
+
+                        table_rows = table.locator("tr.hover\\:bg-gray-100.focus-within\\:bg-gray-100").all()
+                        e_buttons = [
+                            {
+                                "link": edit_buttons[i].get_attribute('href'),
+                                "category": normalize_text(table_rows[i].locator("td:nth-child(1)").text_content()),
+                                "title": normalize_text(table_rows[i].locator("td:nth-child(2)").text_content()),
+                                "price": table_rows[i].locator("td:nth-child(3)").text_content()
+                            }
+                            for i in range(len(edit_buttons))
+                        ]
+
+                        # Item matching and upload (EXACTLY same as working version)
+                        item_found = False
+                        for i in range(len(table_rows)):
+                            if e_buttons[i]['title'] == normalized_name and e_buttons[i]['category'] == item_category and e_buttons[i]['price'] == item_price:
+                                item_found = True
+                                page.goto(e_buttons[i]['link'])
+                                status_field = page.locator("#status")
+                                status_field.wait_for(state="visible")
+                                status_field.select_option("Active")
+                                file_input = page.locator("input[type='file']")
+                                file_input.set_input_files(image_path)
+                                update_button = page.locator("button[type='submit']")
+                                update_button.wait_for(state="visible")
+                                update_button.click()
+                                page.wait_for_selector(
+                                    "div.bg-green-500.text-white.px-4.mb-8.flex.items-center.justify-between.rounded.max-w-3xl",
+                                    state="attached",
+                                    timeout=10000
+                                )
+                                break
+
+                        if item_found:
+                            os.remove(image_path)
+                            logger.info(f"[{volume}] Uploaded and removed: {image_file_name}")
+                            processed_items += 1
+
+                        # Return to main page (EXACTLY same as working version)
+                        page.goto(MAIN_URL)
+
+                    except Exception as e:
+                        logger.error(f"[{volume}] Error processing item '{item_name}': {e}")
+                        continue
+
+                # Final cleanup (same as working version)
                 final_photos = images_counter.count_images(volume_folder_path)
                 images_counter.update_remaining_photos(volume, final_photos)
-                
-                logger.info(f"[Thread {thread_id} | Volume {volume}] Completed. "
-                           f"Processed {processed_items} items. Final remaining: {final_photos}")
+                logger.info(f"[{volume}] ✅ Completed. Processed {processed_items} items. Final remaining: {final_photos}")
                 
                 return {
                     "status": "completed",
@@ -182,110 +287,6 @@ def _process_volume_thread(vendor_email, vendor_password, folder_path, volume_fo
     except Exception as e:
         logger.error(f"[Thread {thread_id} | Volume {volume}] Failed with error: {e}")
         return {"status": "failed", "volume": volume, "error": str(e)}
-
-def _process_volume_items(page, excel_path, volume_folder_path, volume, stop_event, task_id, main_url):
-    """Process all items for a specific volume."""
-    if not os.path.exists(excel_path):
-        raise FileNotFoundError(f"Excel file not found at {excel_path}")
-    
-    df = pd.read_excel(excel_path)
-    processed_items = 0
-    check_count = 0
-    
-    for idx, row in df.iterrows():
-        check_count += 1
-        
-        if check_count % 3 == 0 or check_count == 1:
-            if stop_event.is_set() or _is_task_revoked(task_id):
-                logger.warning(f"[Volume {volume}] Stop signal detected at row {idx}. Exiting.")
-                return processed_items
-        
-        if _process_single_item(page, row, volume_folder_path, volume, main_url):
-            processed_items += 1
-    
-    return processed_items
-
-def _process_single_item(page, row, volume_folder_path, volume, main_url):
-    """Process a single item upload."""
-    try:
-        item_name = str(row['title'])
-        normalized_name = normalize_text(item_name)
-        item_category = normalize_text(str(row['CategoryName']))
-        item_price = str(clean_price(row['price']))
-        image_file_name = str(row['Image_File_Name'])
-        
-        image_base_name = os.path.splitext(image_file_name)[0]
-        search_pattern = os.path.join(volume_folder_path, image_base_name + '.*')
-        matching_files = glob.glob(search_pattern)
-        
-        if not matching_files:
-            return False
-        
-        image_path = matching_files[0]
-        
-        photos = images_counter.count_images(volume_folder_path)
-        images_counter.update_remaining_photos(volume, photos)
-        
-        if _search_and_upload_item(page, item_name, normalized_name, item_category, item_price, image_path):
-            os.remove(image_path)
-            logger.info(f"[Volume {volume}] Uploaded & removed {image_file_name}")
-            return True
-        
-        page.goto(main_url)
-        return False
-        
-    except Exception as e:
-        logger.error(f"[Volume {volume}] Error processing item '{row.get('title', 'Unknown')}': {e}")
-        return False
-
-def _search_and_upload_item(page, item_name, normalized_name, item_category, item_price, image_path):
-    """Search for item and upload image if found."""
-    try:
-        search_box = page.locator("#search")
-        search_box.fill(item_name)
-        
-        try:
-            page.wait_for_function("document.documentElement.classList.contains('nprogress-busy')", timeout=2000)
-            page.wait_for_function("!document.documentElement.classList.contains('nprogress-busy')")
-        except:
-            page.wait_for_timeout(3000)
-        
-        table = page.locator("table.w-full.whitespace-nowrap")
-        edit_buttons = table.locator("a[href^='https://vendor.elitewherego.com/items/']").all()
-        
-        if not edit_buttons:
-            return False
-        
-        table_rows = table.locator("tr.hover\\:bg-gray-100.focus-within\\:bg-gray-100").all()
-        
-        for i in range(len(table_rows)):
-            row_category = normalize_text(table_rows[i].locator("td:nth-child(1)").text_content())
-            row_title = normalize_text(table_rows[i].locator("td:nth-child(2)").text_content())
-            row_price = table_rows[i].locator("td:nth-child(3)").text_content()
-            
-            if row_title == normalized_name and row_category == item_category and row_price == item_price:
-                edit_link = edit_buttons[i].get_attribute('href')
-                page.goto(edit_link)
-                
-                file_input = page.locator("input[type='file']")
-                file_input.set_input_files(image_path)
-                
-                update_button = page.locator("button[type='submit']")
-                update_button.wait_for(state="visible")
-                update_button.click()
-                
-                page.wait_for_selector(
-                    "div.bg-green-500.text-white.px-4.mb-8.flex.items-center.justify-between.rounded.max-w-3xl",
-                    state="attached",
-                    timeout=10000
-                )
-                return True
-        
-        return False
-        
-    except Exception as e:
-        logger.error(f"Error in search and upload: {e}")
-        return False
 
 def _check_task_revocation(self):
     """Check if task has been revoked."""
