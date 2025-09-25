@@ -1,5 +1,6 @@
-from rest_framework.decorators import api_view, parser_classes
+from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 import zipfile
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
 def process_images_comfyui(request):
     """
     Process images with ComfyUI pipeline - accepts either a zip file or a single image
@@ -126,6 +128,7 @@ def process_images_comfyui(request):
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
+@permission_classes([IsAuthenticated])
 def process_images(request):
     """
     Process images - accepts either a zip file or a single image

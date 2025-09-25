@@ -2,6 +2,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
+from users.custom_permissions import IsAdminOrAbove
 from rest_framework import status
 from django.core.files.storage import default_storage
 import os
@@ -94,7 +95,7 @@ def index(request):
     return Response({"message": "Welcome to the Dashboard Automation API!"})
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminOrAbove])
 def start_auto_approve(request):
     """Start auto-approve task."""
     validation_error = validate_required_fields(request.data, ['username', 'password'])
