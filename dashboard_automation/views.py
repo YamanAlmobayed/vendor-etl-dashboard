@@ -29,6 +29,7 @@ from celery import states
 from celery_singleton.exceptions import DuplicateTaskError
 from celery_singleton.util import generate_lock
 from utils.sanitizers import replace_space_with_underscore
+from django.shortcuts import render
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +90,9 @@ def validate_excel_file(uploaded_file):
         )
     return None
 
-@api_view(['GET'])
+
 def index(request):
-    """API index endpoint."""
-    return Response({"message": "Welcome to the Dashboard Automation API!"})
+    return render(request, 'ControlV01.html')
 
 @api_view(['POST'])
 @permission_classes([IsAdminOrAbove])

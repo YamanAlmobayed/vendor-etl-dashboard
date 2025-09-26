@@ -8,3 +8,6 @@ app = Celery('dashboard')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 app.autodiscover_tasks()
+
+app.conf.timezone = "Asia/Dubai"
+app.conf.enable_utc = True

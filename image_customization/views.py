@@ -228,7 +228,7 @@ def process_images(request):
         return Response({
             'message': 'Image processing started',
             'task_id': task.id,
-            'status': 'PENDING',
+            'status': 'started',
             'detail': 'Use the task_id to check processing status and get download link'
         }, status=status.HTTP_202_ACCEPTED)
             
