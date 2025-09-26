@@ -198,7 +198,7 @@ def scrape_menu_categories(self, menu_url, vendor_name):
         return {
             'status': 'completed',
             'message': 'Categories scraping completed successfully',
-            'download_link': f'http://10.39.1.71/{excel_file_path}'
+            'download_link': f'{os.getenv("BASE_URL")}{excel_file_path}'
         }
         
     except Exception as e:

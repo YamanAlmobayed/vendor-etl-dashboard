@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from celery import shared_task
 import logging
 from utils.helper_methods import perform_vendor_login
+import os 
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def scrape_categories(self, vendor_name, vendor_email, vendor_password):
             'status': 'completed',
             'message': f'Category scraping completed. Scraped {len(rows_dict_list)} categories successfully',
             'total_scraped': len(rows_dict_list),
-            'download_link': f'http://10.39.1.71/{excel_file_path}'
+            'download_link': f'{os.getenv("BASE_URL")}{excel_file_path}'
         }
         
     except Exception as e:

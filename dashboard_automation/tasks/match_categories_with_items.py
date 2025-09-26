@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 from celery import shared_task
 import logging
-
+import os
 logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, name='match_categories_with_items')
@@ -106,6 +106,6 @@ def _create_merge_summary(merged_df, missing_categories, duplicates_removed, out
         'items_without_category_id': items_without_category_id,
         'missing_categories_count': len(missing_categories),
         'missing_categories': missing_categories,
-        'download_link': f'http://10.39.1.71/{output_path}',
+        'download_link': f'{os.getenv("BASE_URL")}{output_path}',
         'duplicates_removed': duplicates_removed
     }                     

@@ -98,7 +98,7 @@ def start_items_downloader(request):
     if check_vendor_zip(sanitized_vendor_name):
         return Response({
             "message": "Vendor data already exists.",
-            "download_link": f"http://10.39.1.71/{zip_file_path}",
+            "download_link": f'{os.getenv("BASE_URL")}{zip_file_path}',
         })
 
     try:

@@ -122,7 +122,7 @@ def _create_vendor_zip(scrapped_dir, vendor_name):
         return {
             'status': 'completed',
             'message': f'{vendor_name} have been downloaded successfully',
-            'download_link': f'http://10.39.1.71/{zip_path}.zip'
+            'download_link': f'{os.getenv("BASE_URL")}{zip_path}.zip'
         }
     except Exception as e:
         logger.error(f"Error creating zip file: {e}")
