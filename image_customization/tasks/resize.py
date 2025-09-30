@@ -16,7 +16,7 @@ WINDOWS_PORT = 5000
 WINDOWS_API_URL = f'http://{WINDOWS_IP}:{WINDOWS_PORT}/process_images'
 
 # Server configuration for download links
-SERVER_BASE_URL = "http://10.39.1.71"  # Update with your server IP/domain
+SERVER_BASE_URL = os.getenv("BASE_URL")  # Update with your server IP/domain
 CUSTOMIZED_IMAGES_DIR = "/customized_images/"
 
 def process_single_image_to_zip(image_file):
@@ -93,7 +93,7 @@ def process_images_task(self, file_data_b64, file_type, original_filename):
         response = requests.post(
             WINDOWS_API_URL,
             files=files,
-            timeout=300,  # 5 minute timeout
+            timeout=30000, 
             stream=True
         )
         

@@ -31,7 +31,7 @@
             </div>
             
             <form id="loginForm" class="p-6 space-y-4">
-                <!-- {% csrf_token %} -->
+                {% csrf_token %}
                 <div>
                     <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
                     <input id="email" type="email" required
@@ -439,7 +439,7 @@
 
     <script>
         $(document).ready(function() {
-            const baseURL = "http://10.39.1.71";
+            const baseURL = "https://10.39.1.39";
 
             /***********************/
             /**Reload check*/
@@ -599,13 +599,13 @@
                     async function fetchToken(email, password) {
                         const URL = baseURL + "/accounts/api-token-auth/";
                         const messageBox = $('#message');
-                        // const csrfToken = getCSRFToken();
+                        const csrfToken = getCSRFToken();
                         try {
                             const response = await fetch(URL, {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json",
-                                    // "X-CSRFToken": csrfToken 
+                                    "X-CSRFToken": csrfToken 
                                 },
                                 body: JSON.stringify({
                                     email: email,
@@ -1761,7 +1761,7 @@
                                                         stopLoading();
                                                         alert('Error checking task status: ' + error.message);
                                                     });
-                                            }, 5000); 
+                                            }, 200000); 
                     }
 
                     // Function to check task status

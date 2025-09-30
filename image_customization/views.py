@@ -172,7 +172,7 @@ def process_images(request):
                     }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate file size (100MB limit)
-        if uploaded_file.size > 100 * 1024 * 1024:
+        if uploaded_file.size > 500 * 1024 * 1024:
             return Response({
                 'error': 'File too large',
                 'detail': 'Maximum file size is 100MB'
