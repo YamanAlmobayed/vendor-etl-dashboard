@@ -5,11 +5,8 @@ from rest_framework import status
 import logging
 import redis
 
-from utils.helper_methods import ( 
-    get_lock_info, remove_paths)
-from utils.file_cleanup_manager import cleanup_task_files
-from celery.result import AsyncResult
-from celery_singleton.util import generate_lock
+from utils.helper_methods import remove_paths
+
 from .tasks.categories_scraper import scrape_menu_categories
 from utils.helper_methods import check_vendor_zip
 from django.core.files.storage import default_storage
@@ -17,6 +14,7 @@ import os
 from .tasks.items_downloader import scrape_menu_items
 from pathlib import Path
 from utils.sanitizers import replace_space_with_underscore
+from .tasks.addons_scraper import scrape_menu_addons 
 
 logger = logging.getLogger(__name__)
 
@@ -140,61 +138,32 @@ def start_items_downloader(request):
             
     except Exception as e:
         return handle_task_start_error(e, task_name="items scraper")
-
+    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def terminate_scraper_task_view(request):
-    """Terminate a running scraper task and clean up resources."""
-    validation_error = validate_required_fields(request.data, ['task_id'])
+def start_addons_scraper(request):
+    """Start addons scraper task."""
+    validation_error = validate_required_fields(
+        request.data, 
+        ['vendor_name']
+    )
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
-    
+
+    sanitized_vendor_name = replace_space_with_underscore(request.data["vendor_name"])
+
     try:
-        task_id = request.data["task_id"]
-        multithread = request.data.get("multithread", False)
-        
-        logger.info(f"Starting termination for scraper task {task_id}")
-        
-        try:
-            result = AsyncResult(task_id)
-            if multithread:
-                result.revoke(terminate=False)
-            else:
-                result.revoke(terminate=True, signal='SIGKILL')
-            logger.info(f"Revoked task: {task_id}")
-        except Exception as e:
-            logger.error(f"Error revoking task {task_id}: {e}")
-        
-        try:
-            task = request.data.get("task")
-            unique_on = request.data.get("unique_on")
-            if task and unique_on:
-                lock_info = get_lock_info(task, unique_on)
-                lock_key = generate_lock(
-                    lock_info["name"],
-                    task_kwargs=lock_info["unique_on"]
-                )
-                if redis_client.delete(lock_key):
-                    logger.info(f"Deleted singleton lock: {lock_key}")
-                else:
-                    logger.warning(f"Singleton lock not found: {lock_key}")
-        except Exception as e:
-            logger.error(f"Error removing singleton lock: {e}")
-        
-        try:
-            if not multithread:
-                cleanup_task_files.apply_async(args=[task_id], countdown=5)
-        except Exception as e:
-            logger.error(f"Error scheduling cleanup task: {e}")
-        
-        return Response({
-            'status': 'success',
-            'message': f'Successfully terminated scraper task {task_id}.',
-        })
-        
-    except Exception as e:
-        logger.error(f"Error terminating scraper task: {e}")
-        return Response(
-            {'status': 'error', 'message': str(e)}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        vendor_url = request.data.get("vendor_url")
+        if not vendor_url:
+            return Response(
+                {'error': 'missing vendor_url'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        task = scrape_menu_addons.delay(
+            vendor_url, 
+            sanitized_vendor_name
         )
+        return create_task_response(task.id, "addons scraping started")
+            
+    except Exception as e:
+        return handle_task_start_error(e, task_name="items scraper")
