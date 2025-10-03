@@ -143,16 +143,7 @@ def process_images_comfyui_task(self, file_data_b64, file_type, original_filenam
             
             # Return success with download link
             return {
-                'status': 'SUCCESS',
-                'result': {
-                    'download_url': download_url,
-                    'filename': saved_filename,
-                    'original_filename': original_filename,
-                    'file_path': file_path,
-                    'content_type': 'application/zip',
-                    'size': len(response.content),
-                    'processing_type': 'ComfyUI Pipeline (Outpaint + Upscale + Resize)'
-                },
+                'download_link': download_url,
                 'progress': 100
             }
         else:
