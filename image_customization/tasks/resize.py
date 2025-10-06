@@ -7,6 +7,7 @@ import zipfile
 import base64
 import os
 import uuid
+from celery_singleton import Singleton
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,8 @@ def ensure_customized_images_dir():
     
     return customized_dir
 
-@shared_task(bind=True)
-def process_images_task(self, file_data_b64, file_type, original_filename):
+@shared_task(bind=True, name='resize', base=Singleton, raise_on_duplicate=True, unique_on=['task'])
+def process_images_task(self, task, file_data_b64, file_type, original_filename):
     """
     Celery task to process images via Flask API
     

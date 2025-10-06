@@ -298,6 +298,8 @@ def get_lock_info(task, unique_on):
         "create_addon_categories":  {"name":"create_addon_categories", "unique_on": {"task":unique_on}},
         "create_addons":  {"name":"create_addons", "unique_on": {"task":unique_on}},
         "link_items_addons":  {"name":"link_items_addons", "unique_on": {"task":unique_on}},
+        "outpainting":  {"name":"outpainting", "unique_on": {"task":unique_on}},
+        "resize":  {"name":"resize", "unique_on": {"task":unique_on}},
     }    
     return tasks[task]
 

@@ -1,7 +1,7 @@
 from celery import shared_task
 import os
 from pathlib import Path
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
 import pandas as pd
 import glob
 from utils import images_counter
@@ -17,7 +17,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from celery import current_app
 from utils.file_cleanup_manager import FileCleanupManager
-from utils.helper_methods import perform_vendor_login
 
 logger = logging.getLogger(__name__)
 

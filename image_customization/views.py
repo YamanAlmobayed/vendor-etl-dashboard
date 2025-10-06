@@ -9,8 +9,20 @@ from PIL import Image
 from .tasks.resize import process_images_task
 import base64
 from .tasks.outpainting import process_images_comfyui_task
+from celery_singleton.exceptions import DuplicateTaskError
+from utils.helper_methods import remove_paths
+
 
 logger = logging.getLogger(__name__)
+
+def handle_duplicate_task_error(file_paths=None):
+    """Handle duplicate task error and cleanup files if provided."""
+    if file_paths:
+        remove_paths(file_paths if isinstance(file_paths, list) else [file_paths])
+    return Response(
+        {"status": "error", "message": "Task Already Running"}, 
+        status=status.HTTP_409_CONFLICT
+    )
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser])
@@ -104,6 +116,7 @@ def process_images_comfyui(request):
         
         # Trigger ComfyUI Celery task
         task = process_images_comfyui_task.delay(
+            'outpainting',
             file_data_b64=file_content_b64,
             file_type=file_type,
             original_filename=uploaded_file.name
@@ -118,6 +131,9 @@ def process_images_comfyui(request):
             'processing_type': 'ComfyUI Pipeline (Outpaint + Upscale + Resize)',
             'detail': 'Use the task_id to check processing status and get download link'
         }, status=status.HTTP_202_ACCEPTED)
+    
+    except DuplicateTaskError:
+        return handle_duplicate_task_error()
             
     except Exception as e:
         logger.error(f"Error in process_images_comfyui view: {str(e)}")
@@ -218,6 +234,7 @@ def process_images(request):
         
         # Trigger Celery task
         task = process_images_task.delay(
+            'resize',
             file_data_b64=file_content_b64,
             file_type=file_type,
             original_filename=uploaded_file.name
@@ -231,6 +248,9 @@ def process_images(request):
             'status': 'started',
             'detail': 'Use the task_id to check processing status and get download link'
         }, status=status.HTTP_202_ACCEPTED)
+        
+    except DuplicateTaskError:
+        return handle_duplicate_task_error()
             
     except Exception as e:
         logger.error(f"Error in process_images view: {str(e)}")

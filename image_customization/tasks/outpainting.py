@@ -8,6 +8,7 @@ import zipfile
 import base64
 import os
 import uuid
+from celery_singleton import Singleton
 
 logger = logging.getLogger(__name__)
 # ComfyUI Configuration
@@ -46,8 +47,8 @@ def ensure_customized_images_dir():
     
     return customized_dir
 
-@shared_task(bind=True)
-def process_images_comfyui_task(self, file_data_b64, file_type, original_filename):
+@shared_task(bind=True, name='outpainting', base=Singleton, raise_on_duplicate=True, unique_on=['task'])
+def process_images_comfyui_task(self, task, file_data_b64, file_type, original_filename):
     """
     Celery task to process images via ComfyUI Flask API
     Pipeline: Outpaint -> Upscale -> Resize/Pad
