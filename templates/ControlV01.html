@@ -31,7 +31,7 @@
             </div>
             
             <form id="loginForm" class="p-6 space-y-4">
-                {% csrf_token %}
+                {% csrf_token %} 
                 <div>
                     <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
                     <input id="email" type="email" required
@@ -101,6 +101,9 @@
                         <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="customized">
                             ✂️ Image Customize
                         </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="completion">
+                            🪄 Image Completion
+                        </button>
                         <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="images">
                             📷 Image Upload
                         </button>
@@ -118,6 +121,9 @@
                         </button>
                         <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="addons">
                             ➕ Add-ons
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="addonsDownloader">
+                            ➕ Add-ons Downloader
                         </button>
                     </div>
                 </div>
@@ -244,6 +250,22 @@
             
                         <!--  Image Form -->
                         <form id="imageCustomizeForm" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
+                                <input type="file" accept="image/*,.zip" class="px-3 py-2 border border-slate-300 rounded-lg file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Customize</button>
+                        </form>
+                    </div>
+
+                    <!-- Images completion By AI Tab -->
+                    <div id="completion" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Images Completion</h2>
+                            <p class="text-slate-600 mt-1">Completion images with AI to 1024×1024 pixels (jpg, jpeg, png, zip).</p>
+                        </div>
+            
+                        <!--  Image Form -->
+                        <form id="imageCompletionForm" class="space-y-4">
                             <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
                                 <input type="file" accept="image/*,.zip" class="px-3 py-2 border border-slate-300 rounded-lg file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
                             </div>
@@ -428,6 +450,21 @@
                             </div>
 
                         </div>
+                    </div>
+
+                    <!-- Item Linking Tab -->
+                    <div id="addonsDownloader" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Add-ons Downloader</h2>
+                            <p class="text-slate-600 mt-1">Download from various platforms (Talabat & Deliveroo)</p>
+                        </div>
+                        <form class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="text" placeholder="Vendor Name" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <input type="url" placeholder="Vendor URL" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Download</button>
+                        </form>
                     </div>
 
                 </div>
@@ -1343,7 +1380,76 @@
                                     });
                             });
 
-                       
+            /***********************/
+            /**Addons Downloader*/
+            /**********************/
+                    async function startAddOnsDownloader(vendorName, vendorURL) {
+                        const URL = baseURL + "/scrapers/start_addons_scraper/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    vendor_name: vendorName,
+                                    vendor_url: vendorURL
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    // Updated form handler with task monitoring
+                    $('#addonsDownloader form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorName = $(this).find('input[type="text"]').val();
+                                const vendorURL = $(this).find('input[type="url"]').val();
+                                
+                                startLoading('Extract Elite Form...', 'Processing');
+                                
+                                startAddOnsDownloader(vendorName, vendorURL)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("addonsDownloader", taskId);
+                                            reCheck(taskId, "addonsDownloader", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+        
 
             /***********************/
             /**Elite Downloader*/
@@ -1705,6 +1811,78 @@
                             });
 
 
+
+            /***********************/
+            /***Images Completion */
+            /**********************/
+                    async function startImagesCompletion(imageFile) {
+                        const URL = baseURL + "/image_customization/process-images-comfyui/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', imageFile);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#imageCompletionForm').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const imageFile = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if ( !imageFile) {
+                                    alert('Please select image');
+                                    return;
+                                }
+                                
+                                startLoading('Customizing...', 'Processing image');
+                                
+                                startImagesCompletion(imageFile)
+                                    .then(response => { 
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("completion", taskId);
+                                            reCheck(taskId, "completion", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
             /***********************/
             /**Tasks*/
             /**********************/
@@ -1761,7 +1939,7 @@
                                                         stopLoading();
                                                         alert('Error checking task status: ' + error.message);
                                                     });
-                                            }, 200000); 
+                                            }, 5000); 
                     }
 
                     // Function to check task status

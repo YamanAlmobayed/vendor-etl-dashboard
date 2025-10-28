@@ -92,8 +92,7 @@ def _process_addon_categories_with_browser(self, vendor_email, vendor_password, 
                     page.select_option("#status", "Active")
                     page.select_option("#is_required", str(row['category_status']))
                     
-                    if row['category_status'] == 'No':
-                        page.fill("#count", str(row['count']))
+                    page.fill("#count", str(row['count']))
                     
                     page.click("button[type='submit']")
                     page.wait_for_selector('table.w-full.whitespace-nowrap')

@@ -19,7 +19,7 @@ WINDOWS_API_URL = f'http://{WINDOWS_IP}:{WINDOWS_PORT}/process_images'
 COMFYUI_WINDOWS_API_URL = f'http://{WINDOWS_IP}:{WINDOWS_PORT}/process_images_comfyui'
 
 # Server configuration for download links
-SERVER_BASE_URL = "http://10.39.1.71"  # Update with your server IP/domain
+SERVER_BASE_URL = os.getenv("BASE_URL")   # Update with your server IP/domain
 CUSTOMIZED_IMAGES_DIR = "/customized_images/"
 
 def process_single_image_to_zip(image_file):

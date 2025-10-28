@@ -127,7 +127,7 @@ def process_images_comfyui(request):
         return Response({
             'message': 'ComfyUI image processing started',
             'task_id': task.id,
-            'status': 'PENDING',
+            'status': 'started',
             'processing_type': 'ComfyUI Pipeline (Outpaint + Upscale + Resize)',
             'detail': 'Use the task_id to check processing status and get download link'
         }, status=status.HTTP_202_ACCEPTED)

@@ -1,0 +1,1815 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Elite WhereGo</title>
+    <script src="https://cdn.tailwindcss.com/3.3.0"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#64748b'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <!-- Login Container -->
+    <div id="loginContainer" class="min-h-screen flex items-center justify-center p-6">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-center">
+                <img src="https://vendor.elitewherego.com/logo200.png" alt="Elite WhereGo" 
+                     class="h-16 mx-auto mb-3 rounded-xl bg-white/10 p-2">
+                <h1 class="text-white text-xl font-semibold">Elite WhereGo</h1>
+                <p class="text-blue-100 text-sm mt-1">Control Dashboard</p>
+            </div>
+            
+            <form id="loginForm" class="p-6 space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="email" class="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                    <input id="email" type="email" required
+                           class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                           placeholder="admin@example.com">
+                </div>
+                
+                <div class="relative">
+                    <label for="password" class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                    <input id="password" type="password" required
+                           class="w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                           placeholder="Enter your password">
+                    <button type="button" id="togglePassword" 
+                            class="absolute right-3 top-10 text-slate-400 hover:text-slate-600 text-sm">
+                        Show
+                    </button>
+                </div>
+                
+                <button type="submit" id="submitBtn"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50">
+                    Sign In
+                </button>
+                
+                <div id="message" class="hidden p-3 rounded-lg text-sm"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden min-h-screen p-6">
+        <!-- Header -->
+        <header class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <img src="https://vendor.elitewherego.com/logo200.png" alt="Logo" class="h-8 rounded-lg">
+                    <h1 class="text-xl font-semibold text-slate-800">Elite WhereGo Dashboard</h1>
+                </div>
+                <div class="relative">
+                    <button id="userDropdown" class="flex items-center space-x-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
+                        <span>Hi, <span id="userName"></span></span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    
+                    <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-2 z-50">
+                        <div id="userEmail" class="px-4 py-2 text-sm text-slate-500 border-b border-slate-200">
+                           
+                        </div>
+                        <button id="logoutBtn" class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Sidebar Navigation -->
+            <nav class="lg:col-span-1">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <h2 class="font-semibold text-slate-800 mb-4">Tools</h2>
+                    <div class="space-y-1">
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="download">
+                            ⬇️ Download
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="customized">
+                            ✂️ Image Customize
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="images">
+                            📷 Image Upload
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="approval">
+                            ✅ Image Approval
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="categories">
+                            📁 Categories Creator
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="extractor">
+                            📊 Categories Extract
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="linking">
+                            🔗 Items Categories Linking
+                        </button>
+                        <button class="nav-btn w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm" data-tab="addons">
+                            ➕ Add-ons
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="lg:col-span-3">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative">
+                    
+                    <!-- Local Loader Overlay for Main Content Only -->
+                    <div id="globalLoader" class="hidden absolute inset-0 bg-white bg-opacity-95 z-10 flex items-center justify-center rounded-xl">
+                        <div class="bg-slate-50 rounded-xl p-8 shadow-lg border border-slate-200 flex flex-col items-center space-y-4 max-w-sm mx-auto">
+                            <div class="relative">
+                                <div class="animate-spin rounded-full h-16 w-16 border-4 border-slate-200 border-t-blue-600"></div>
+                                <div class="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-50 to-transparent opacity-20"></div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-slate-800 font-semibold text-lg mb-1" id="loaderText">Processing...</div>
+                                <div class="text-sm text-slate-500" id="loaderSubtext">Please wait</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Download Tab -->
+                    <div id="download" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Downloader</h2>
+                            <p class="text-slate-600 mt-1">Download  from various platforms</p>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-slate-700 mb-3">Choose Platform</label>
+                            <div class="grid grid-cols-4 gap-3">
+                                <button type="button" class="platform-btn relative group p-4 border-2 border-slate-200 rounded-xl hover:border-blue-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" data-platform="elite">
+                                    <div class="text-center">
+                                       <div class="w-8 h-8 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                                            <span class="text-blue-600 font-bold text-lg">E</span>
+                                        </div>
+                                        <h3 class="font-medium text-slate-700 group-hover:text-blue-700 transition-colors">Elite WhereGo</h3>
+                                        <p class="text-xs text-slate-500 mt-1">Our platform</p>
+                                    </div>
+                                    <div class="absolute inset-0 bg-blue-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                                </button>
+                                
+                                <button type="button" class="platform-btn relative group p-4 border-2 border-slate-200 rounded-xl hover:border-orange-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2" data-platform="food">
+                                    <div class="text-center">
+                                        <div class="w-8 h-8 mx-auto mb-2 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                                            <span class="text-orange-600 font-bold text-lg">🍕</span>
+                                        </div>
+                                        <h3 class="font-medium text-slate-700 group-hover:text-orange-700 transition-colors">Food</h3>
+                                        <p class="text-xs text-slate-500 mt-1">Food Vendors</p>
+                                    </div>
+                                    <div class="absolute inset-0 bg-orange-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                                </button>
+                                
+                                <button type="button" class="platform-btn relative group p-4 border-2 border-slate-200 rounded-xl hover:border-green-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" data-platform="martcate">
+                                    <div class="text-center">
+                                        <div class="w-8 h-8 mx-auto mb-2 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                                            <span class="text-green-600 font-bold text-lg">🛒</span>
+                                        </div>
+                                        <h3 class="font-medium text-slate-700 group-hover:text-green-700 transition-colors">Mart</h3>
+                                        <p class="text-xs text-slate-500 mt-1">Mart Categories</p>
+                                    </div>
+                                    <div class="absolute inset-0 bg-green-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                                </button>
+                                
+                                <button type="button" class="platform-btn relative group p-4 border-2 border-slate-200 rounded-xl hover:border-green-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" data-platform="mart">
+                                    <div class="text-center">
+                                        <div class="w-8 h-8 mx-auto mb-2 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                                            <span class="text-green-600 font-bold text-lg">🛒</span>
+                                        </div>
+                                        <h3 class="font-medium text-slate-700 group-hover:text-green-700 transition-colors">Mart</h3>
+                                        <p class="text-xs text-slate-500 mt-1">Mart Vendors</p>
+                                    </div>
+                                    <div class="absolute inset-0 bg-green-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Elite Form -->
+                        <form id="eliteForm" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <input type="text" placeholder="Vendor Name" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <input type="email" placeholder="Vendor Email" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <input type="password" placeholder="Password" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Download</button>
+                        </form>
+
+                        <!-- Food Form -->
+                        <form id="foodForm" class="space-y-4 hidden">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="text" placeholder="Vendor Name" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <input type="url" placeholder="Vendor URL" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Download</button>
+                        </form>
+
+                        <!-- Mart categories -->
+                        <form id="martcateForm" class="space-y-4 hidden">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="text" placeholder="Vendor Name" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <input type="url" placeholder="Vendor URL" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Download</button>
+                        </form>
+
+                        <!-- Mart Form -->
+                        <form id="martForm" class="space-y-4 hidden">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="text" placeholder="Vendor Name" class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <input type="file" accept=".xlsx" class="px-3 py-2 border border-slate-300 rounded-lg file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Download</button>
+                        </form>
+                    </div>
+
+                    <!-- Images Customize By AI Tab -->
+                    <div id="customized" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Images Customize</h2>
+                            <p class="text-slate-600 mt-1">Customize images with AI to 1024×1024 pixels on a white background (jpg, jpeg, png, zip).</p>
+                        </div>
+            
+                        <!--  Image Form -->
+                        <form id="imageCustomizeForm" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
+                                <input type="file" accept="image/*,.zip" class="px-3 py-2 border border-slate-300 rounded-lg file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Customize</button>
+                        </form>
+                    </div>
+
+                    <!-- Image Upload Tab -->
+                    <div id="images" class="tab-content">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Image Upload</h2>
+                            <p class="text-slate-600 mt-1">Upload vendor images via ZIP file</p>
+                        </div>
+                        <form class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Vendor Email</label>
+                                    <input type="email" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="vendor@example.com">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                                    <input type="password" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">ZIP File</label>
+                                <input type="file" accept=".zip" required class="w-full border border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Upload Images</button>
+                        </form>
+                    </div>
+
+                    <!-- Image Approval Tab -->
+                    <div id="approval" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Image Approval</h2>
+                            <p class="text-slate-600 mt-1">Review and approve uploaded images</p>
+                        </div>
+                        <form class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Elite Dashboard Email</label>
+                                    <input type="email" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="admin@elitewherego.ae">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                                    <input type="password" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg transition-colors">Start Approval</button>
+                        </form>
+                    </div>
+
+                    <!-- Categories Tab -->
+                    <div id="categories" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Category Management</h2>
+                            <p class="text-slate-600 mt-1">Create and manage vendor categories</p>
+                        </div>
+                        <form class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Vendor Email</label>
+                                    <input type="email" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="vendor@example.com">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                                    <input type="password" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Excel File</label>
+                                <input type="file" accept=".xlsx" required class="w-full border border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700">
+                            </div>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-colors">Create Categories</button>
+                        </form>
+                    </div>
+
+                    <!-- Category Extractor Tab -->
+                    <div id="extractor" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Category Extractor</h2>
+                            <p class="text-slate-600 mt-1">Extract existing categories from vendor</p>
+                        </div>
+                        <form class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">Vendor Name</label>
+                                <input type="text" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter vendor name">
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Vendor Email</label>
+                                    <input type="email" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="vendor@example.com">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                                    <input type="password" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg transition-colors">Extract Categories</button>
+                        </form>
+                    </div>
+
+                    <!-- Item Linking Tab -->
+                    <div id="linking" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibold text-slate-800">Item Linking</h2>
+                            <p class="text-slate-600 mt-1">Link items with categories</p>
+                        </div>
+                        <form class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Items File</label>
+                                    <input type="file" accept=".xlsx" required class="w-full border border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">Categories File</label>
+                                    <input type="file" accept=".xlsx" required class="w-full border border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700">
+                                </div>
+                            </div>
+                            <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-lg transition-colors">Link Items</button>
+                        </form>
+                    </div>
+
+                    <!-- Add-ons Tab -->
+                    <div id="addons" class="tab-content hidden">
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-semibeland text-slate-800">Add-on Management</h2>
+                            <p class="text-slate-600 mt-1">Create and manage add-ons</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <!-- Add-on Categories -->
+                            <div id="addons-categories" class="border border-slate-200 rounded-lg p-4">
+                                <h3 class="font-medium text-slate-800 mb-3">Add-on Categories</h3>
+                                <form class="space-y-3">
+                                    <div>
+                                        <input type="email" placeholder="Vendor Email" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <input type="password" placeholder="Password" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <input type="file" accept=".xlsx" class="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+                                    </div>
+                                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm transition-colors">Create Categories</button>
+                                </form>
+                            </div>
+
+                            <!-- Add-ons -->
+                            <div id="addons-addons" class="border border-slate-200 rounded-lg p-4">
+                                <h3 class="font-medium text-slate-800 mb-3">Add-ons</h3>
+                                <form class="space-y-3">
+                                    <div>
+                                        <input type="email" placeholder="Vendor Email" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <input type="password" placeholder="Password" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <input type="file" accept=".xlsx" class="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+                                    </div>
+                                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm transition-colors">Create Add-ons</button>
+                                </form>
+                            </div>
+
+                            <!-- Add-ons items -->
+                            <div id="addons-items" class="border border-slate-200 rounded-lg p-4">
+                                <h3 class="font-medium text-slate-800 mb-3">Items Add-ons Linking</h3>
+                                <form class="space-y-3">
+                                    <div>
+                                        <input type="email" placeholder="Vendor Email" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <input type="password" placeholder="Password" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <input type="file" accept=".xlsx" class="w-full text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700">
+                                    </div>
+                                    <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg text-sm transition-colors">Link Add-ons</button>
+                                </form>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+
+
+    <script>
+        $(document).ready(function() {
+            const baseURL = "https://10.39.1.39";
+
+            /***********************/
+            /**Reload check*/
+            /**********************/
+            checkAuthOnLoad();
+            /*
+                download
+                customized
+                images
+                approval
+                categories
+                extractor
+                linking
+                addons
+            */
+            
+
+            /***********************/
+            /**CSRF Token*/
+            /**********************/
+            function getCSRFToken() {
+                return document.querySelector('[name=csrfmiddlewaretoken]').value;
+            }
+
+            /***********************/
+            /**Loader*/
+            /**********************/
+                    // Loader management functions
+                    function showLoader(text = 'Processing...', subtext = 'Please wait', reCheck) {
+                        if (reCheck){
+                            let activeTab = $('.nav-btn.bg-blue-100').data('tab');
+                            let taskId = getCookies(activeTab);
+                            if (taskId){
+                                $('#loaderText').text(text);
+                                $('#loaderSubtext').text(subtext);
+                                $('#globalLoader').removeClass('hidden');
+                                $('body').addClass('overflow-hidden');
+                            }
+                        }else{
+                                $('#loaderText').text(text);
+                                $('#loaderSubtext').text(subtext);
+                                $('#globalLoader').removeClass('hidden');
+                                $('body').addClass('overflow-hidden');
+                        }
+                    }
+
+                    function hideLoader() {
+                        $('#globalLoader').addClass('hidden');
+                        $('body').removeClass('overflow-hidden');
+                    }
+
+                    // Disable all interactive elements
+                    function disableInteractions() {
+                        $('button, input, select, textarea').prop('disabled', true);
+                        $('form').addClass('pointer-events-none');
+                    }
+
+                    // Re-enable all interactive elements
+                    function enableInteractions() {
+                        $('button, input, select, textarea').prop('disabled', false);
+                        $('form').removeClass('pointer-events-none');
+                    }
+
+                    // Combined loader with interaction blocking
+                    function startLoading(text = 'Processing...', subtext = 'Please wait', reCheck = false) {
+                        showLoader(text, subtext, reCheck);
+                        // disableInteractions();
+                    }
+
+                    function stopLoading() {
+                        hideLoader();
+                        // enableInteractions();
+                    }
+
+            /***********************/
+            /**Navigation*/
+            /**********************/
+                    $('.nav-btn').click(function() {
+                        const tab = $(this).data('tab');
+                        let taskRunning = checkITaskOnTab(tab);
+                        if (taskRunning) {
+                            startLoading('Another task running...', 'Processing');
+                        }else{
+                            stopLoading();
+                        }
+                        $('.tab-content').addClass('hidden');
+                        $('#' + tab).removeClass('hidden');
+                        $('.nav-btn').removeClass('bg-blue-100 text-blue-700');
+                        $(this).addClass('bg-blue-100 text-blue-700');
+                    });
+                    // Set default active tab
+                    $('.nav-btn[data-tab="download"]').click();
+
+            /***********************/
+            /**Platforms*/
+            /**********************/
+                $('.platform-btn').click(function() {
+                    const platform = $(this).data('platform');
+                    
+                    // Update button states
+                    $('.platform-btn').removeClass('border-blue-500 border-orange-500 border-green-500 bg-blue-50 bg-orange-50 bg-green-50');
+                    $('.platform-btn').addClass('border-slate-200');
+                    
+                    // Set active state based on platform
+                    if (platform === 'elite') {
+                        $(this).removeClass('border-slate-200').addClass('border-blue-500 bg-blue-50');
+                    } else if (platform === 'food') {
+                        $(this).removeClass('border-slate-200').addClass('border-orange-500 bg-orange-50');
+                    } else if (platform === 'martcate') {
+                        $(this).removeClass('border-slate-200').addClass('border-green-500 bg-green-50');
+                    } else if (platform === 'mart') {
+                        $(this).removeClass('border-slate-200').addClass('border-green-500 bg-green-50');
+                    }
+                    
+                    // Show corresponding form
+                    $('#eliteForm, #foodForm, #martForm, #martcateForm').addClass('hidden');
+                    $('#' + platform + 'Form').removeClass('hidden');
+                });
+                
+                // Set default active platform
+                $('.platform-btn[data-platform="elite"]').click();
+
+
+            /***********************/
+            /**Cookies*/
+            /**********************/
+                    // save in cookies
+                    function setCookies(CookiesName, token, days = 7) {
+                        const expires = new Date();
+                        expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+                        document.cookie = `${CookiesName}=${token}; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+                    }
+
+                    // get from cookies
+                    function getCookies(CookiesName) {
+                        const cookies = document.cookie.split(';');
+                        for (let cookie of cookies) {
+                            const [name, value] = cookie.trim().split('=');
+                            if (name === CookiesName) {
+                                return value;
+                            }
+                        }
+                        return null;
+                    }
+
+                    // delete cookies 
+                    function clearCookies(CookiesName) {
+                        document.cookie = `${CookiesName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
+                    }
+
+
+            /***********************/
+            /**Login*/
+            /**********************/
+
+                    // get user token baseURL + "/accounts/api-token-auth/";
+                    async function fetchToken(email, password) {
+                        const URL = baseURL + "/accounts/api-token-auth/";
+                        const messageBox = $('#message');
+                        const csrfToken = getCSRFToken();
+                        try {
+                            const response = await fetch(URL, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "X-CSRFToken": csrfToken 
+                                },
+                                body: JSON.stringify({
+                                    email: email,
+                                    password: password
+                                })
+                            });
+
+                            if (!response.ok) {
+                                messageBox.removeClass('hidden bg-green-100 text-green-700')
+                                        .addClass('bg-red-100 text-red-700')
+                                        .text('Failed to fetch token. Please check your credentials.')
+                                        .removeClass('hidden');
+                                return null;
+                            }
+
+                            const data = await response.json();
+                            return data;
+                        } catch (error) {
+                            messageBox.removeClass('hidden bg-green-100 text-green-700')
+                                    .addClass('bg-red-100 text-red-700')
+                                    .text('Something went wrong while fetching the token.')
+                                    .removeClass('hidden');
+                            console.error(error);
+                            return null;
+                        }
+                    }
+
+                    // Check for existing auth token on page load
+                    function checkAuthOnLoad() {
+                        const token = getCookies("Token");
+                        if (token) {
+                            // User is already logged in, show dashboard
+                            $('#loginContainer').addClass('hidden');
+                            $('#dashboard').removeClass('hidden');
+                            userName = getCookies("userName");
+                            Email = getCookies("Email");
+                            role = getCookies("role");
+                            $("#userName").text(userName);
+                            $("#userEmail").text(Email);
+                            if (role === "user"){
+                                $('.nav-btn[data-tab="approval"]').addClass('hidden');
+                            }
+                        } else {
+                            // No token, show login form
+                            $('#loginContainer').removeClass('hidden');
+                            $('#dashboard').addClass('hidden');
+                        }
+                    }
+
+                    
+
+                    // User dropdown toggle
+                    $('#userDropdown').click(function(e) {
+                        e.stopPropagation();
+                        $('#dropdownMenu').toggleClass('hidden');
+                    });
+
+                    // Password toggle
+                    $('#togglePassword').click(function() {
+                        const passwordField = $('#password');
+                        const type = passwordField.attr('type') === 'password' ? 'text' : 'password';
+                        passwordField.attr('type', type);
+                        $(this).text(type === 'password' ? 'Show' : 'Hide');
+                    });
+
+                    // login function
+                    $('#loginForm').submit(function(e) {
+                        e.preventDefault();
+                        const email = $('#email').val();
+                        const password = $('#password').val();
+                        const messageBox = $('#message');
+                        
+                        messageBox.removeClass('hidden bg-red-100 text-red-700 bg-green-100 text-green-700').addClass('hidden');
+                        
+                        // Start loading
+                        startLoading('Signing in...', 'Authenticating your credentials');
+                        
+                        fetchToken(email, password)
+                            .then(data => {
+                                if (data.token) {
+                                    setCookies("Token", data.token, 7);
+                                    messageBox.addClass('bg-green-100 text-green-700').text('Login successful!').removeClass('hidden');
+                                    setTimeout(() => {
+                                        $('#loginContainer').addClass('hidden');
+                                        $('#dashboard').removeClass('hidden');
+                                        $("#userName").text(data.username);
+                                        $("#userEmail").text(data.Email);
+                                        setCookies("userName", data.username, 7);
+                                        setCookies("Email", data.email, 7);
+                                        setCookies("role", data.role, 7);
+                                        stopLoading();
+                                        if (data.role === "user"){
+                                            $('.nav-btn[data-tab="approval"]').addClass('hidden');
+                                        }
+                                    }, 1000);
+                                } else {
+                                    stopLoading(); // Stop loading on authentication failure
+                                    messageBox.addClass('bg-red-100 text-red-700').text('Invalid credentials').removeClass('hidden');
+                                }
+                            })
+                            .catch(function(error) {
+                                stopLoading(); // Stop loading on fetch error
+                                messageBox.addClass('bg-red-100 text-red-700').text('Login failed').removeClass('hidden');
+                            });
+                    });
+
+
+                    // destroy token {{baseURL}}/accounts/logout/ 
+                    $('#logoutBtn').click(function() {
+                        // Clear token cookie on logout
+                        clearCookies("Token");
+                        clearCookies("userName");
+                        clearCookies("Email");
+                        
+                        $('#dashboard').addClass('hidden');
+                        $('#loginContainer').removeClass('hidden');
+                        $('#email, #password').val('');
+                        $('#message').addClass('hidden');
+                        $('#dropdownMenu').addClass('hidden'); // Close dropdown on logout
+                    });
+
+            /***********************/
+            /**Dropdown*/
+            /**********************/
+                    // Close dropdown when clicking outside
+                    $(document).click(function() {
+                        $('#dropdownMenu').addClass('hidden');
+                    });
+
+                    // Prevent dropdown from closing when clicking inside it
+                    $('#dropdownMenu').click(function(e) {
+                        e.stopPropagation();
+                    });
+
+
+            /***********************/
+            /**Upload Images*/
+            /**********************/
+                    async function startUploadImages(vendorEmail, vendorPassword, zipFile) {
+                        const URL = baseURL + "/automation/start_image_uploader/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('vendor_email', vendorEmail);
+                            formData.append('vendor_password', vendorPassword);
+                            formData.append('file', zipFile);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#images form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();
+                                const zipFile = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if (!zipFile) {
+                                    alert('Please select a ZIP file');
+                                    return;
+                                }
+                                
+                                startLoading('Uploading images...', 'Processing');
+                                
+                                startUploadImages(vendorEmail, vendorPassword, zipFile)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("images", taskId);
+                                            reCheck(taskId, "images");
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /**Images Approval*/
+            /**********************/
+                    async function startImagesApproval(userEmail, userPassword) {
+                        const URL = baseURL + "/automation/start_auto_approve/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    username: userEmail,
+                                    password: userPassword
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#approval form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const userEmail = $(this).find('input[type="email"]').val();
+                                const userPassword = $(this).find('input[type="password"]').val();
+                                
+                                startLoading('Approve images...', 'Processing');
+                                
+                                startImagesApproval(userEmail, userPassword)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("approval", taskId);
+                                            reCheck(taskId, "approval");
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /**Categories Creator*/
+            /**********************/
+                    async function startCreateCategories(vendorEmail, vendorPassword, excelFile) {
+                        const URL = baseURL + "/automation/start_categories_creator/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('vendor_email', vendorEmail);
+                            formData.append('vendor_password', vendorPassword);
+                            formData.append('file', excelFile);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#categories form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();
+                                const excelFile = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if (!excelFile) {
+                                    alert('Please select an Excel file');
+                                    return;
+                                }
+                                
+                                startLoading('Creating categories...', 'Processing Excel file');
+                                
+                                startCreateCategories(vendorEmail, vendorPassword, excelFile)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("categories", taskId);
+                                            reCheck(taskId, "categories");
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+
+            /***********************/
+            /**Categories Extractor*/
+            /**********************/
+                    async function startExtractCategories(fileName, vendorEmail, vendorPassword) {
+                        const URL = baseURL + "/automation/start_categories_extractor/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    vendor_name: fileName,
+                                    vendor_email: vendorEmail,
+                                    vendor_password: vendorPassword
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    // Updated form handler with task monitoring
+                    $('#extractor form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const fileName = $(this).find('input[type="text"]').val();
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();
+                                
+                                startLoading('Extract categories...', 'Processing');
+                                
+                                startExtractCategories(fileName, vendorEmail, vendorPassword)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("extractor", taskId);
+                                            reCheck(taskId, "extractor", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /**Link items with categories*/
+            /**********************/
+                    async function LinkItemsWithCategories(items_file, categories_file) {
+                        const URL = baseURL + "/automation/match_categories_with_items/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('items_file', items_file);  
+                            formData.append('categories_file', categories_file);
+                            
+                            console.log('Sending request to:', URL);
+                            console.log('Items file:', items_file.name);
+                            console.log('Categories file:', categories_file.name);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            console.log('Response status:', response.status);
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                console.error('Server error response:', errorData);
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            console.log('Success response:', data);
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Linking error:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#linking form').submit(function(e) {
+                        e.preventDefault();
+                        
+                        const items_file = $(this).find('input[type="file"]')[0].files[0];    
+                        const categories_file = $(this).find('input[type="file"]')[1].files[0];
+                        
+                        if (!items_file || !categories_file) {
+                            alert('Please select both Items and Categories files');
+                            return;
+                        }
+                        
+                        startLoading('Linking items with categories...', 'Processing files');
+                        
+                        LinkItemsWithCategories(items_file, categories_file)
+                            .then(response => {
+                                console.log('API response:', response);
+                                
+                                if (response.status === 'started') {
+                                    startLoading(response.status, response.message);
+                                    
+                                    const taskId = response.task_id;
+                                    setCookies("linking", taskId);
+                                    reCheck(taskId, "linking", true);
+                                    
+                                    return taskId;
+                                } else {
+                                    console.error('Unexpected response status:', response.status);
+                                    throw new Error('Linking failed to start - unexpected response status: ' + response.status);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Form submission error:', error);
+                                stopLoading();
+                                alert('Linking failed: ' + error.message);
+                            });
+                    });
+
+            /***********************/
+            /**addons categories*/
+            /**********************/
+                    async function startCreateAddonCategories( vendor_email, vendor_password, addons_categories_file) {
+                        const URL = baseURL + "/automation/start_addon_categories_creator/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('vendor_email', vendor_email);
+                            formData.append('vendor_password', vendor_password);
+                            formData.append('file', addons_categories_file);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#addons #addons-categories form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();   
+                                const addons_categories_file = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if (!vendorEmail || !vendorPassword || !addons_categories_file) {
+                                    alert('Please select file');
+                                    alert('Linking failed: ' + error.message);
+                                    return;
+                                }
+                                
+                                startLoading('Creating addon categories...', 'Processing Excel file');
+                                
+                                startCreateAddonCategories(vendorEmail, vendorPassword, addons_categories_file)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("addons", taskId);
+                                            reCheck(taskId, "addons", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /**addons */
+            /**********************/
+                    async function startCreateAddons( vendor_email, vendor_password, addons_categories_file) {
+                        const URL = baseURL + "/automation/start_addons_creator/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('vendor_email', vendor_email);
+                            formData.append('vendor_password', vendor_password);
+                            formData.append('file', addons_categories_file);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#addons #addons-addons form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();   
+                                const addons_categories_file = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if (!vendorEmail || !vendorPassword || !addons_categories_file) {
+                                    alert('Please select file');
+                                    alert('Linking failed: ' + error.message);
+                                    return;
+                                }
+                                
+                                startLoading('Creating addons...', 'Processing Excel file');
+                                
+                                startCreateAddons(vendorEmail, vendorPassword, addons_categories_file)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("addons", taskId);
+                                            reCheck(taskId, "addons", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+ 
+            /***********************/
+            /**addons items linker */
+            /**********************/
+                    async function startAddonsItemsLinking( vendor_email, vendor_password, addons_items_file) {
+                        const URL = baseURL + "/automation/start_addons_items_linker/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('vendor_email', vendor_email);
+                            formData.append('vendor_password', vendor_password);
+                            formData.append('file', addons_items_file);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#addons #addons-items form').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();   
+                                const addons_items_file = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if (!vendorEmail || !vendorPassword || !addons_items_file) {
+                                    alert('Please select file');
+                                    alert('Linking failed: ' + error.message);
+                                    return;
+                                }
+                                
+                                startLoading('Creating addons...', 'Processing Excel file');
+                                
+                                startAddonsItemsLinking(vendorEmail, vendorPassword, addons_items_file)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("addons", taskId);
+                                            reCheck(taskId, "addons", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+                       
+
+            /***********************/
+            /**Elite Downloader*/
+            /**********************/
+                    async function startExtractEliteFile(fileName, vendorEmail, vendorPassword) {
+                        const URL = baseURL + "/automation/start_dashboard_image_downloader/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    vendor_name: fileName,
+                                    vendor_email: vendorEmail,
+                                    vendor_password: vendorPassword
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    // Updated form handler with task monitoring
+                    $('#eliteForm').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const fileName = $(this).find('input[type="text"]').val();
+                                const vendorEmail = $(this).find('input[type="email"]').val();
+                                const vendorPassword = $(this).find('input[type="password"]').val();
+                                
+                                startLoading('Extract Elite Form...', 'Processing');
+                                
+                                startExtractEliteFile(fileName, vendorEmail, vendorPassword)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("download", taskId);
+                                            reCheck(taskId, "download", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /**Food items Downloader*/
+            /**********************/
+                    async function startFoodItemsDownloader(vendorName, vendorURL) {
+                        const URL = baseURL + "/scrapers/start_items_downloader/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    vendor_name: vendorName,
+                                    vendor_url: vendorURL
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    // Updated form handler with task monitoring
+                    $('#foodForm').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorName = $(this).find('input[type="text"]').val();
+                                const vendorURL = $(this).find('input[type="url"]').val();
+                                
+                                startLoading('Extract Elite Form...', 'Processing');
+                                
+                                startFoodItemsDownloader(vendorName, vendorURL)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("download", taskId);
+                                            reCheck(taskId, "download", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+
+
+            /***********************/
+            /**Mart categories Downloader*/
+            /**********************/
+                    async function startMartCategoriesDownloader(vendorName, vendorURL) {
+                        const URL = baseURL + "/scrapers/start_categories_scraper/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    vendor_name: vendorName,
+                                    vendor_url: vendorURL
+                                })
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    // Updated form handler with task monitoring
+                    $('#martcateForm').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorName = $(this).find('input[type="text"]').val();
+                                const vendorURL = $(this).find('input[type="url"]').val();
+                                
+                                startLoading('Extract Elite Form...', 'Processing');
+                                
+                                startMartCategoriesDownloader(vendorName, vendorURL)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("download", taskId);
+                                            reCheck(taskId, "download", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /***Mart items Downloader */
+            /**********************/
+                    async function startMartItemsDownloader( vendorName, vendorFile) {
+                        const URL = baseURL + "/scrapers/start_items_downloader/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('vendor_name', vendorName);
+                            formData.append('file', vendorFile);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#martForm').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const vendorName = $(this).find('input[type="text"]').val();
+                                const vendorFile = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if ( !vendorFile) {
+                                    alert('Please select file');
+                                    alert('Linking failed: ' + error.message);
+                                    return;
+                                }
+                                
+                                startLoading('Downloading...', 'Processing Excel file');
+                                
+                                startMartItemsDownloader( vendorName, vendorFile)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("download", taskId);
+                                            reCheck(taskId, "download", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+
+            /***********************/
+            /***Images customize */
+            /**********************/
+                    async function startImagesCustomize(imageFile) {
+                        const URL = baseURL + "/image_customization/process-images/";
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', imageFile);
+                            
+                            const response = await fetch(URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Try again:', error);
+                            throw error;
+                        }
+                    }
+
+                    $('#imageCustomizeForm').submit(function(e) {
+                                e.preventDefault();
+                                
+                                const imageFile = $(this).find('input[type="file"]')[0].files[0];
+                                
+                                if ( !imageFile) {
+                                    alert('Please select image');
+                                    return;
+                                }
+                                
+                                startLoading('Customizing...', 'Processing image');
+                                
+                                startImagesCustomize(imageFile)
+                                    .then(response => {
+                                        if (response.status === 'started') {
+                                            startLoading(response.status, response.message);
+                                            
+                                            // Start monitoring task status every 1 minute
+                                            const taskId = response.task_id;
+                                            setCookies("customized", taskId);
+                                            reCheck(taskId, "customized", true);
+                                            
+                                            return taskId;
+                                        } else {
+                                            throw new Error('Upload failed to start');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        stopLoading();
+                                        alert('Try again' + error.message);
+                                    });
+                            });
+
+
+            /***********************/
+            /**Tasks*/
+            /**********************/
+                    // check task every min
+                    async function reCheck(taskId, taskName, download) {
+                        const taskInterval = setInterval(() => {
+                                                checkTask(taskId)
+                                                    .then(taskResponse => {
+                                                        
+                                                        if (taskResponse.status === 'preparing') {
+                                                            // Continue checking - update loader message
+                                                            startLoading('Preparing', taskResponse.message, true);
+                                                        } else if (taskResponse.status === 'completed') {
+                                                            // Task completed - stop monitoring and show result
+                                                            clearCookies(taskName);
+                                                            clearInterval(taskInterval);
+                                                            stopLoading();
+
+                                                            if (download && taskResponse.info && taskResponse.info.download_link) {
+                                                                // Show success message first
+                                                                // alert(taskResponse.message);
+                                                                
+                                                                // Create a temporary anchor element to trigger download
+                                                                const downloadLink = taskResponse.info.download_link;
+                                                                const link = document.createElement('a');
+                                                                link.href = downloadLink;
+                                                                link.download = ''; // Browser will use filename from URL
+                                                                link.style.display = 'none';
+                                                                
+                                                                // Add to DOM, click, and remove
+                                                                document.body.appendChild(link);
+                                                                link.click();
+                                                                document.body.removeChild(link);
+                                                                
+                                                                // console.log('Download started:', downloadLink);
+                                                            } else if (download) {
+                                                                // Download was expected but no link provided
+                                                                alert(taskResponse.message + '\nNote: No download link was provided.');
+                                                            } else {
+                                                                // Normal completion without download
+                                                                alert(taskResponse.message);
+                                                            }
+                                                        } else {
+                                                            // Handle other statuses
+                                                            clearCookies(taskName);
+                                                            clearInterval(taskInterval);
+                                                            stopLoading();
+                                                        }
+                                                    })
+                                                    .catch(error => {
+                                                        console.error('Task monitoring error:', error);
+                                                        clearCookies(taskName);
+                                                        clearInterval(taskInterval);
+                                                        stopLoading();
+                                                        alert('Error checking task status: ' + error.message);
+                                                    });
+                                            }, 200000); 
+                    }
+
+                    // Function to check task status
+                    async function checkTask(taskId) {
+                        const URL = baseURL + "/task_status/?task_id=" + taskId;
+                        const token = getCookies("Token");
+                        
+                        if (!token) {
+                            throw new Error('No authentication token found');
+                        }
+                        
+                        try {
+                            const response = await fetch(URL, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': 'Token ' + token
+                                }
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || `Server error: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            return data;
+                            
+                        } catch (error) {
+                            console.error('Task check error:', error);
+                            throw error;
+                        }
+                    }
+
+                    // check task in load
+                    function checkITaskOnTab(taskName) {  
+                        const taskId = getCookies(taskName);
+                        let download = false;
+                        if (taskName === "extractor" || taskName === "linking" ){
+                            download = true;
+                        }
+                        if (taskId){
+                            reCheck(taskId, taskName, download);
+                            return true;
+                        }else {
+                            return false;
+                        }
+                    }
+        });
+    </script>
+</body>
+</html>
