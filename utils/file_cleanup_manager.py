@@ -4,9 +4,10 @@ import redis
 from celery import shared_task
 from celery.result import AsyncResult
 import logging
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
-redis_client = redis.StrictRedis(host='redis', port=6379, db=0, decode_responses=True)
+redis_client = redis.from_url(settings.REDIS_URL)
 
 class FileCleanupManager:
     """

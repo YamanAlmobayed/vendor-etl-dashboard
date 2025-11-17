@@ -30,15 +30,11 @@ from celery_singleton.exceptions import DuplicateTaskError
 from celery_singleton.util import generate_lock
 from utils.sanitizers import replace_space_with_underscore
 from django.shortcuts import render
+from django.conf import settings    
 
 logger = logging.getLogger(__name__)
 
-redis_client = redis.StrictRedis(
-    host='redis',
-    port=6379,
-    db=0,
-    decode_responses=True
-)
+redis_client = redis.from_url(settings.REDIS_URL)
 
 def validate_required_fields(request_data, required_keys):
     """Validate that all required fields are present in request data."""
@@ -341,7 +337,6 @@ def start_matching_items_with_categories(request):
 @permission_classes([IsAuthenticated])
 def task_status_view(request):
     """Get task status including subtasks and monitor tasks."""
-    
     validation_error = validate_required_fields(request.GET, ['task_id'])
     if validation_error:
         return Response(validation_error["error"], status=validation_error["status"])
@@ -435,7 +430,7 @@ def task_status_view(request):
                 
                 if overall_status['status'] == 'completed' and request.data.get("vendor_name"):
                     response['download_link'] = f'{os.getenv("BASE_URL")}scrapped_data/{request.data["vendor_name"]}.zip'
-                
+
                 return Response(response)
                 
             except Exception as e:

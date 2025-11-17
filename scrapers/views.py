@@ -15,15 +15,11 @@ from .tasks.items_downloader import scrape_menu_items
 from pathlib import Path
 from utils.sanitizers import replace_space_with_underscore
 from .tasks.addons_scraper import scrape_menu_addons 
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-redis_client = redis.StrictRedis(
-    host='redis',
-    port=6379,
-    db=0,
-    decode_responses=True
-)
+redis_client = redis.from_url(settings.REDIS_URL)
 
 def validate_required_fields(request_data, required_keys):
     """Validate that all required fields are present in request data."""
