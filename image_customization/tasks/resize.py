@@ -12,7 +12,7 @@ from celery_singleton import Singleton
 logger = logging.getLogger(__name__)
 
 # Configuration
-WINDOWS_IP = '10.39.1.50'  # Update with your Windows machine IP
+WINDOWS_IP = '10.39.1.19'  # Update with your Windows machine IP
 WINDOWS_PORT = 5000
 WINDOWS_API_URL = f'http://{WINDOWS_IP}:{WINDOWS_PORT}/process_images'
 

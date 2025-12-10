@@ -56,3 +56,11 @@ def format_number(value):
         return str(int(num)) if num.is_integer() else str(num)
     except:
         return str(value)
+
+def deliveroo_addon_price_cleaner(text):
+    matches = re.findall(r"\+AED\s*(\d+(?:\.\d+)?)", text)
+    
+    if matches:
+        # Return the last match found
+        return matches[-1]
+    return None

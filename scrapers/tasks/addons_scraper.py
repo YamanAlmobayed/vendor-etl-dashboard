@@ -11,6 +11,7 @@ import logging
 import traceback
 from pathlib import Path
 from utils.file_cleanup_manager import FileCleanupManager, cleanup_task_files
+from utils.sanitizers import deliveroo_addon_price_cleaner
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class DeliverooAddonScraper(BaseAddonScraper):
         except:
             addon_name = addon.query_selector('p.ccl-649204f2a8e630fd.ccl-a396bc55704a9c8a.ccl-f88600790342ab98.ccl-40ad99f7b47f3781').text_content()
         try:
-            addon_price = addon.query_selector('div.ccl-a206e125970432e3').text_content()
+            addon_price = deliveroo_addon_price_cleaner(addon.query_selector('div.ccl-a206e125970432e3').text_content())
         except:
             addon_price = ''
         return addon_name, addon_price

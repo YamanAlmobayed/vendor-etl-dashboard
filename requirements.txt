@@ -30,4 +30,5 @@ psutil
 playwright-stealth
 django-cors-headers
 pillow
+dotenv
 

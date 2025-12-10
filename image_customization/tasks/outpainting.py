@@ -13,7 +13,7 @@ from celery_singleton import Singleton
 logger = logging.getLogger(__name__)
 # ComfyUI Configuration
 # Configuration
-WINDOWS_IP = '10.39.1.50'  # Update with your Windows machine IP
+WINDOWS_IP = '10.39.1.19'  # Update with your Windows machine IP
 WINDOWS_PORT = 5000
 WINDOWS_API_URL = f'http://{WINDOWS_IP}:{WINDOWS_PORT}/process_images'
 COMFYUI_WINDOWS_API_URL = f'http://{WINDOWS_IP}:{WINDOWS_PORT}/process_images_comfyui'
@@ -102,7 +102,6 @@ def process_images_comfyui_task(self, task, file_data_b64, file_type, original_f
         response = requests.post(
             COMFYUI_WINDOWS_API_URL,
             files=files,
-            timeout=600,  # 10 minute timeout for full ComfyUI pipeline
             stream=True
         )
         
